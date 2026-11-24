@@ -1,0 +1,6 @@
+{
+  "name": "Priyontor — Coming Soon",
+  "description": "Inaugural launch countdown for Priyontor — Where Heritage Meets Heart, launching December 10, 2026.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

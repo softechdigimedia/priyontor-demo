@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Playfair Display", Georgia, Cambria, "Times New Roman", serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Priyontor Heritage Gold Logo Palette */
+  --color-ivory: #FDF3DC;
+  --color-ivory-soft: #F7E8C6;
+  --color-ivory-deep: #EBD8AC;
+  --color-wine: #4A0D1B;
+  --color-wine-deep: #2F0710;
+  --color-wine-hover: #390914;
+  --color-gold: #B5832C;
+  --color-gold-bright: #D4A44B;
+  --color-gold-text: #7D5718;
+  --color-lotus: #D87277;
+  --color-lotus-soft: #F7E4E5;
+  --color-espresso: #241214;
+  --color-espresso-muted: #5E4346;
+  --color-border-gold: #DFCCA6;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background-color: var(--color-ivory);
+    color: var(--color-espresso);
+    scroll-behavior: smooth;
+  }
+
+  h1, h2, h3, h4, .font-editorial {
+    font-family: var(--font-serif);
+  }
+
+  *:focus-visible {
+    outline: 2px solid #4A0D1B;
+    outline-offset: 2px;
+  }
+
+  .dark-surface *:focus-visible {
+    outline: 2px solid #E5C37A;
+    outline-offset: 2px;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.gold-divider-gradient {
+  background: linear-gradient(90deg, transparent 0%, #B5832C 50%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
