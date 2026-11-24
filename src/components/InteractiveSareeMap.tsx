@@ -12,7 +12,7 @@ interface InteractiveSareeMapProps {
 }
 
 const SAREE_MAP_IMAGE_SRC =
-  '/assets/aistudio/From_Banarasi_grandeur_to_Kanjivaram_elegance___India_s_sarees_are_a_celebration_of_culture__craftsmanship___timeless_beauty_______Every_weave_carries_a_legacy_passed_through_generations__reflecting_the_artistry_abbd3b6b.jfif';
+  '/assets/aistudio/map.jfif';
 
 export const InteractiveSareeMap: React.FC<InteractiveSareeMapProps> = ({
   activeHotspotId,
