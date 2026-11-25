@@ -3,9 +3,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PRODUCTS } from './data/archiveData';
-import { BagItem, CurrencyCode, FilterState, PageRoute, Product, SareeMapCategoryId } from './types/archive';
+import { PolicyEntry } from './data/priyontorInfo';
+import {
+  AuthUser,
+  BagItem,
+  CurrencyCode,
+  FilterState,
+  OrderRecord,
+  PageRoute,
+  Product,
+  ProductCategoryId,
+  SareeMapCategoryId,
+  WardrobeSegment,
+} from './types/archive';
+import {
+  fetchCurrentUser,
+  loginPatron,
+  logoutPatron,
+  signupPatron,
+  syncPatronWishlist,
+} from './services/authApi';
+import { fetchPatronOrders } from './services/ordersApi';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { ActiveModalType, ModalsAndDrawers } from './components/ModalsAndDrawers';
@@ -13,24 +33,33 @@ import { HomePage } from './pages/HomePage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { DiscoverIndiaPage } from './pages/DiscoverIndiaPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
+import { CheckoutPage } from './pages/CheckoutPage';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageRoute>('home');
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
   const [currency, setCurrency] = useState<CurrencyCode>('INR');
-  const [wishlistIds, setWishlistIds] = useState<string[]>(['empress-varanasi']);
+  const [wishlistIds, setWishlistIds] = useState<string[]>(['up-banarasi-silk']);
   const [bag, setBag] = useState<BagItem[]>([]);
-  const [activeModal, setActiveModal] = useState<ActiveModalType>(null);
+  // PDF Requirement: 5% Welcome Discount [PRIYO5] pop-up opens right after launching the website
+  const [activeModal, setActiveModal] = useState<ActiveModalType>('welcome-offer');
+  const [activePromoCode, setActivePromoCode] = useState<string>('');
+  const [activePolicyTab, setActivePolicyTab] = useState<PolicyEntry['id'] | 'size-chart'>('shipping');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [patronOrders, setPatronOrders] = useState<OrderRecord[]>([]);
 
   const [filters, setFilters] = useState<FilterState>({
     category: 'all',
+    wardrobe: 'all',
     mapCategory: null,
     regions: [],
     weaves: [],
     fibers: [],
     giMarks: [],
-    maxPriceINR: 600000,
+    maxPriceINR: 25000,
     readiness: 'all',
     sortBy: 'curator',
     searchQuery: '',
@@ -41,6 +70,85 @@ export default function App() {
     window.setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3000);
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    fetchCurrentUser(null)
+      .then((res) => {
+        if (!mounted || !res) return;
+        setAuthUser(res.user);
+        setAuthToken(res.token || null);
+        if (res.user.wishlistIds.length > 0) {
+          setWishlistIds(res.user.wishlistIds);
+        }
+        fetchPatronOrders(res.token || null)
+          .then((orders) => {
+            if (mounted) setPatronOrders(orders);
+          })
+          .catch(() => {});
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleLogin = async (payload: { email: string; password: string }) => {
+    setAuthLoading(true);
+    try {
+      const { user, token } = await loginPatron(payload);
+      setAuthUser(user);
+      setAuthToken(token);
+      if (user.wishlistIds.length > 0) {
+        setWishlistIds(user.wishlistIds);
+      }
+      fetchPatronOrders(token)
+        .then((orders) => setPatronOrders(orders))
+        .catch(() => {});
+      setActiveModal(null);
+      showToast(`Welcome back, ${user.name}.`);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignup = async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    city?: string;
+  }) => {
+    setAuthLoading(true);
+    try {
+      const { user, token } = await signupPatron({
+        ...payload,
+        wishlistIds,
+      });
+      setAuthUser(user);
+      setAuthToken(token);
+      setPatronOrders([]);
+      setActiveModal(null);
+      showToast(`Account created. Welcome to Priyontor, ${user.name}.`);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setAuthLoading(true);
+    try {
+      await logoutPatron(authToken);
+    } catch {
+      // Clear local session state even if network fails
+    } finally {
+      setAuthUser(null);
+      setAuthToken(null);
+      setPatronOrders([]);
+      setAuthLoading(false);
+      setActiveModal(null);
+      showToast('You have signed out of your Priyontor account.');
+    }
   };
 
   const handleNavigate = (page: PageRoute, sectionId?: string) => {
@@ -69,26 +177,31 @@ export default function App() {
     setWishlistIds((prev) => {
       const exists = prev.includes(productId);
       const next = exists ? prev.filter((id) => id !== productId) : [...prev, productId];
-      showToast(exists ? 'Removed from saved heirlooms.' : 'Saved to your heirloom shortlist.');
+      showToast(exists ? 'Removed from wishlist.' : 'Saved to your Priyontor wishlist.');
+      if (authUser) {
+        syncPatronWishlist(authToken, next).catch(() => {});
+      }
       return next;
     });
   };
 
   const handleAddToBag = ({
     product,
+    selectedSize,
     colorway,
     pleatArchitecture,
     fallPico,
     blouseTailoring,
   }: {
     product: Product;
+    selectedSize: string;
     colorway: string;
     pleatArchitecture: 'traditional' | 'pre-pleated';
     fallPico: boolean;
     blouseTailoring: boolean;
   }) => {
-    const unitPriceINR = product.priceINR + (blouseTailoring ? 4500 : 0);
-    const key = `${product.id}-${colorway}-${pleatArchitecture}-${fallPico}-${blouseTailoring}`;
+    const unitPriceINR = product.priceINR + (blouseTailoring ? 1200 : 0);
+    const key = `${product.id}-${selectedSize}-${colorway}-${pleatArchitecture}-${fallPico}-${blouseTailoring}`;
 
     setBag((prev) => {
       const existing = prev.find((i) => i.key === key);
@@ -100,6 +213,7 @@ export default function App() {
         {
           key,
           product,
+          selectedSize,
           colorway,
           pleatArchitecture,
           fallPico,
@@ -109,14 +223,15 @@ export default function App() {
         },
       ];
     });
-    showToast(`${product.title} added to Acquisition Bag.`);
+    showToast(`${product.title} (${selectedSize}) added to your Bag.`);
     setActiveModal('bag');
   };
 
   const handleQuickAcquire = (product: Product) => {
     handleAddToBag({
       product,
-      colorway: product.colorways[0]?.name ?? 'ARCHIVE EDITION',
+      selectedSize: product.availableSizes[0] ?? 'FREE SIZE',
+      colorway: product.colorways[0]?.name ?? 'HERITAGE EDITION',
       pleatArchitecture: 'traditional',
       fallPico: true,
       blouseTailoring: false,
@@ -137,12 +252,22 @@ export default function App() {
     setBag((prev) => prev.filter((item) => item.key !== key));
   };
 
-  const handleFilterByCategory = (
-    cat: 'all' | 'sarees' | 'lehengas' | 'kurtas' | 'anarkalis'
-  ) => {
+  const handleFilterByCategory = (cat: 'all' | ProductCategoryId) => {
     setFilters((prev) => ({
       ...prev,
       category: cat,
+      wardrobe: 'all',
+      mapCategory: null,
+      regions: [],
+    }));
+    handleNavigate('collections');
+  };
+
+  const handleFilterByWardrobe = (wardrobe: 'all' | WardrobeSegment) => {
+    setFilters((prev) => ({
+      ...prev,
+      category: 'all',
+      wardrobe,
       mapCategory: null,
       regions: [],
     }));
@@ -153,6 +278,7 @@ export default function App() {
     setFilters((prev) => ({
       ...prev,
       category: 'all',
+      wardrobe: 'all',
       mapCategory: null,
       regions: [region],
     }));
@@ -163,16 +289,30 @@ export default function App() {
     setFilters((prev) => ({
       ...prev,
       category: 'all',
+      wardrobe: 'all',
       mapCategory,
       regions: [],
       weaves: [],
       fibers: [],
       giMarks: [],
-      maxPriceINR: 600000,
+      maxPriceINR: 25000,
       readiness: 'all',
       searchQuery: '',
     }));
     handleNavigate('collections');
+  };
+
+  const handleApplyPromoCode = (code: string) => {
+    const cleaned = code.trim().toUpperCase();
+    setActivePromoCode(cleaned);
+    if (cleaned === 'PRIYO5') {
+      showToast('Code PRIYO5 applied: 5% Welcome Discount on your 1st order.');
+    }
+  };
+
+  const handleOpenPolicyTab = (tab: PolicyEntry['id'] | 'size-chart') => {
+    setActivePolicyTab(tab);
+    setActiveModal('policies');
   };
 
   const totalBagCount = bag.reduce((sum, item) => sum + item.quantity, 0);
@@ -189,15 +329,16 @@ export default function App() {
       <Header
         currentPage={currentPage}
         onNavigate={handleNavigate}
-        currency={currency}
-        onCurrencyChange={setCurrency}
         wishlistCount={wishlistIds.length}
         bagCount={totalBagCount}
+        authUser={authUser}
         onOpenWishlist={() => setActiveModal('wishlist')}
         onOpenBag={() => setActiveModal('bag')}
-        onOpenSearch={() => setActiveModal('search')}
         onOpenAccount={() => setActiveModal('account')}
-        onOpenConcierge={() => setActiveModal('concierge')}
+        onOpenLogin={() => setActiveModal('login')}
+        onOpenSignup={() => setActiveModal('signup')}
+        onLogout={handleLogout}
+        onOpenPolicies={() => handleOpenPolicyTab('size-chart')}
       />
 
       <main id="main-content" className="flex-1">
@@ -205,15 +346,22 @@ export default function App() {
           <HomePage
             currency={currency}
             wishlistIds={wishlistIds}
+            authUser={authUser}
+            authToken={authToken}
             onToggleWishlist={handleToggleWishlist}
             onSelectProduct={handleSelectProduct}
             onQuickAdd={handleQuickAcquire}
             onNavigate={handleNavigate}
             onFilterByCategory={handleFilterByCategory}
+            onFilterByWardrobe={handleFilterByWardrobe}
             onFilterByRegion={handleFilterByRegion}
             onSelectMapCategory={handleSelectMapCategory}
-            onOpenRoyalties={() => setActiveModal('royalties')}
-            onOpenConcierge={() => setActiveModal('concierge')}
+            onApplyPromoCode={handleApplyPromoCode}
+            onOpenPolicyTab={handleOpenPolicyTab}
+            onOpenContact={() => setActiveModal('contact')}
+            onInquirySubmitted={(refNum) =>
+              showToast(`Enquiry #${refNum} received. Our Kolkata team will contact you shortly.`)
+            }
           />
         )}
 
@@ -225,8 +373,10 @@ export default function App() {
             wishlistIds={wishlistIds}
             onToggleWishlist={handleToggleWishlist}
             onSelectProduct={handleSelectProduct}
+            onQuickAdd={handleQuickAcquire}
             onNavigate={handleNavigate}
-            onOpenConcierge={() => setActiveModal('concierge')}
+            onOpenPolicyTab={handleOpenPolicyTab}
+            onOpenContact={() => setActiveModal('contact')}
           />
         )}
 
@@ -235,8 +385,9 @@ export default function App() {
             currency={currency}
             onSelectProduct={handleSelectProduct}
             onQuickAcquire={handleQuickAcquire}
-            onOpenConcierge={() => setActiveModal('concierge')}
-            onOpenQrDossier={() => setActiveModal('qr')}
+            onSelectMapCategory={handleSelectMapCategory}
+            onOpenPolicyTab={handleOpenPolicyTab}
+            onOpenContact={() => setActiveModal('contact')}
           />
         )}
 
@@ -250,9 +401,33 @@ export default function App() {
             onAddToBag={handleAddToBag}
             onSelectProduct={handleSelectProduct}
             onNavigate={handleNavigate}
-            onOpenConcierge={() => setActiveModal('concierge')}
-            onOpenQrDossier={() => setActiveModal('qr')}
+            onOpenPolicyTab={handleOpenPolicyTab}
+            onOpenContact={() => setActiveModal('contact')}
             onOpenMacroZoom={() => setActiveModal('macro')}
+          />
+        )}
+
+        {currentPage === 'checkout' && (
+          <CheckoutPage
+            currency={currency}
+            bag={bag}
+            authUser={authUser}
+            authToken={authToken}
+            activePromoCode={activePromoCode}
+            onApplyPromoCode={handleApplyPromoCode}
+            onUpdateBagQty={handleUpdateBagQty}
+            onRemoveBagItem={handleRemoveBagItem}
+            onClearBag={() => setBag([])}
+            onNavigate={handleNavigate}
+            onOpenLogin={() => setActiveModal('login')}
+            onOpenSignup={() => setActiveModal('signup')}
+            onOpenAccount={() => setActiveModal('account')}
+            onOrderConfirmed={(order) => {
+              if (authUser) {
+                setPatronOrders((prev) => [order, ...prev]);
+              }
+              showToast(`Order #${order.orderNumber} confirmed.`);
+            }}
           />
         )}
       </main>
@@ -260,23 +435,41 @@ export default function App() {
       <Footer
         onNavigate={handleNavigate}
         onFilterCategory={handleFilterByCategory}
-        onOpenConcierge={() => setActiveModal('concierge')}
-        onOpenRoyalties={() => setActiveModal('royalties')}
-        onOpenQrDossier={() => setActiveModal('qr')}
+        onOpenPolicyTab={handleOpenPolicyTab}
+        onOpenContact={() => setActiveModal('contact')}
       />
 
       <ModalsAndDrawers
         activeModal={activeModal}
         onClose={() => setActiveModal(null)}
+        onSwitchModal={setActiveModal}
         currency={currency}
         bag={bag}
         onUpdateBagQty={handleUpdateBagQty}
         onRemoveBagItem={handleRemoveBagItem}
-        onClearBag={() => setBag([])}
         wishlistIds={wishlistIds}
         onToggleWishlist={handleToggleWishlist}
         onSelectProduct={handleSelectProduct}
         macroProduct={selectedProduct}
+        authUser={authUser}
+        authToken={authToken}
+        authLoading={authLoading}
+        patronOrders={patronOrders}
+        activePromoCode={activePromoCode}
+        onApplyPromoCode={handleApplyPromoCode}
+        activePolicyTab={activePolicyTab}
+        onChangePolicyTab={setActivePolicyTab}
+        onProceedToCheckout={() => {
+          setActiveModal(null);
+          handleNavigate('checkout');
+        }}
+        onExploreCollections={() => {
+          setActiveModal(null);
+          handleNavigate('collections');
+        }}
+        onLogin={handleLogin}
+        onSignup={handleSignup}
+        onLogout={handleLogout}
       />
 
       {/* Accessible Live Toast Notification */}

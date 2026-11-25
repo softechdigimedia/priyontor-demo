@@ -62,6 +62,25 @@
   background: linear-gradient(90deg, transparent 0%, #B5832C 50%, transparent 100%);
 }
 
+@keyframes priyontor-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-priyontor-marquee {
+  display: flex;
+  width: max-content;
+  animation: priyontor-marquee 28s linear infinite;
+}
+
+.animate-priyontor-marquee:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

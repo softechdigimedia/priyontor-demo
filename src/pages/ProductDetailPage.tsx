@@ -9,18 +9,19 @@ import {
   Grid,
   Heart,
   Leaf,
+  MessageCircle,
   Plane,
-  QrCode,
   RefreshCw,
+  Ruler,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
-  Star,
-  Video,
   ZoomIn,
 } from 'lucide-react';
 import { PRODUCTS, formatPrice } from '../data/archiveData';
+import { BRAND_INFO, PolicyEntry } from '../data/priyontorInfo';
 import { CurrencyCode, PageRoute, Product } from '../types/archive';
+import { BenarasGhatMotif, LotusMotif } from '../components/HeritageMotifs';
 import { TextileArtwork } from '../components/TextileArtwork';
 
 interface ProductDetailPageProps {
@@ -30,6 +31,7 @@ interface ProductDetailPageProps {
   onToggleWishlist: (id: string) => void;
   onAddToBag: (opts: {
     product: Product;
+    selectedSize: string;
     colorway: string;
     pleatArchitecture: 'traditional' | 'pre-pleated';
     fallPico: boolean;
@@ -37,8 +39,8 @@ interface ProductDetailPageProps {
   }) => void;
   onSelectProduct: (product: Product) => void;
   onNavigate: (page: PageRoute) => void;
-  onOpenConcierge: () => void;
-  onOpenQrDossier: () => void;
+  onOpenPolicyTab: (tab: PolicyEntry['id'] | 'size-chart') => void;
+  onOpenContact: () => void;
   onOpenMacroZoom: (product: Product) => void;
 }
 
@@ -50,22 +52,25 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   onAddToBag,
   onSelectProduct,
   onNavigate,
-  onOpenConcierge,
-  onOpenQrDossier,
+  onOpenPolicyTab,
+  onOpenContact,
   onOpenMacroZoom,
 }) => {
   const galleryViews = product.galleryArtworks ?? [
     { label: 'FULL LOOK', artworkId: product.artworkId },
-    { label: 'KADHWA MOTIFS', artworkId: 'empress-kadhwa-macro' as const },
+    { label: 'MOTIF DETAIL', artworkId: 'empress-kadhwa-macro' as const },
     { label: 'REVERSE WEAVE', artworkId: 'empress-reverse-weave' as const },
-    { label: 'PIT-LOOM', artworkId: 'empress-pit-loom' as const },
+    { label: 'HANDLOOM CRAFT', artworkId: 'empress-pit-loom' as const },
   ];
 
+  const isSaree = product.category === 'sarees' || product.category === 'designer-sarees';
+
   const [activeGalleryIdx, setActiveGalleryIdx] = useState(0);
+  const [selectedSize, setSelectedSize] = useState(product.availableSizes[0] ?? 'FREE SIZE');
   const [selectedColorway, setSelectedColorway] = useState(
-    product.colorways[0]?.name ?? 'ROYAL ARCHIVE'
+    product.colorways[0]?.name ?? 'HERITAGE EDITION'
   );
-  const [fallPico, setFallPico] = useState(true);
+  const [fallPico, setFallPico] = useState(isSaree);
   const [pleatArch, setPleatArch] = useState<'traditional' | 'pre-pleated'>('traditional');
   const [blouseTailoring, setBlouseTailoring] = useState(false);
   const [pincode, setPincode] = useState('');
@@ -74,21 +79,23 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [addedFeedback, setAddedFeedback] = useState(false);
 
   const isSaved = wishlistIds.includes(product.id);
-  const tailoringAddINR = blouseTailoring ? 4500 : 0;
+  const tailoringAddINR = isSaree && blouseTailoring ? 1200 : 0;
   const totalUnitPriceINR = product.priceINR + tailoringAddINR;
 
-  const pairingProducts = PRODUCTS.filter((p) => p.category === 'accessories');
-  const relatedTreasures = PRODUCTS.filter(
-    (p) => p.varanasiTreasure && p.id !== product.id
-  ).slice(0, 4);
+  const pairingProducts = PRODUCTS.filter(
+    (p) => (isSaree ? p.category === 'blouses' : p.category === 'sarees') && p.id !== product.id
+  ).slice(0, 2);
+
+  const relatedTreasures = PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4);
 
   const handleAcquire = () => {
     onAddToBag({
       product,
+      selectedSize,
       colorway: selectedColorway,
-      pleatArchitecture: pleatArch,
-      fallPico,
-      blouseTailoring,
+      pleatArchitecture: isSaree ? pleatArch : 'traditional',
+      fallPico: isSaree ? fallPico : false,
+      blouseTailoring: isSaree ? blouseTailoring : false,
     });
     setAddedFeedback(true);
     window.setTimeout(() => setAddedFeedback(false), 2000);
@@ -98,23 +105,24 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     e.preventDefault();
     const cleaned = pincode.trim();
     if (cleaned.length < 4) {
-      setPincodeResult('Please enter a valid 6-digit Indian PIN code or international postal code.');
+      setPincodeResult('Please enter a valid PIN or international postal code.');
       return;
     }
-    const extraDays =
-      pleatArch === 'pre-pleated' ? '6–8 business days (incl. bespoke pleating)' : '3–5 business days';
+    const isIndianPin = /^\d{6}$/.test(cleaned);
     setPincodeResult(
-      `Confirmed for ${cleaned.toUpperCase()}: Insured air courier dispatch in ${extraDays}.`
+      isIndianPin
+        ? `Confirmed for ${cleaned}: Dispatches from Kolkata in 2–3 days · Delivery in 4–7 business days.`
+        : `Confirmed for ${cleaned.toUpperCase()}: Worldwide delivery available in 7–14 business days.`
     );
   };
 
   const featureMatrix = [
-    { icon: Leaf, title: 'Pure Handloom', sub: product.fiberTag + ' Heritage Fiber' },
-    { icon: Grid, title: 'Intricate Weave', sub: product.weaveType },
-    { icon: Gem, title: 'Rich Zari Border', sub: 'Tested Silver & Gold' },
-    { icon: Feather, title: 'Graceful Drape', sub: 'Zero-Float Comfort' },
-    { icon: Sparkles, title: 'Festive & Bridal', sub: 'Ceremonial Heirloom' },
-    { icon: Award, title: 'GI Certified', sub: product.giNumber },
+    { icon: Leaf, title: 'Authentic Fabric', sub: product.fiberTag + ' Selection' },
+    { icon: Grid, title: 'Craft & Silhouette', sub: product.weaveType },
+    { icon: Gem, title: 'Motif Identity', sub: 'Lotus & Benaras Ghat' },
+    { icon: Feather, title: 'Size Availability', sub: product.secondaryBadge || selectedSize },
+    { icon: Sparkles, title: 'Occasion Ready', sub: 'Festive & Everyday' },
+    { icon: Award, title: 'Delivery Coverage', sub: BRAND_INFO.deliveryLocations },
   ];
 
   return (
@@ -139,20 +147,19 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           </nav>
 
           <div className="flex items-center gap-3 font-mono text-[10px]">
-            <span className="text-[#4A0D1B] font-semibold">ARCHIVE REF: {product.archiveRef}</span>
+            <span className="text-[#4A0D1B] font-semibold">REF: {product.archiveRef}</span>
             <span className="text-[#B5832C]" aria-hidden="true">|</span>
-            <span className="text-[#5E4346]">{product.batchLabel}</span>
+            <span className="text-[#5E4346]">{product.categoryLabel.toUpperCase()}</span>
           </div>
         </div>
       </div>
 
-      {/* TOP EDITORIAL SPLIT (Inspired by Georgette Saree Set layout + Logo Palette) */}
+      {/* Product Split View */}
       <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
-          {/* LEFT: Gallery Stage */}
+          {/* LEFT: Gallery */}
           <div className="lg:col-span-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              {/* Thumbnails */}
               <div className="sm:col-span-2 flex sm:flex-col gap-2.5 order-2 sm:order-1 overflow-x-auto no-scrollbar">
                 {galleryViews.map((view, idx) => {
                   const active = idx === activeGalleryIdx;
@@ -180,7 +187,6 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 })}
               </div>
 
-              {/* Main Frame */}
               <div className="sm:col-span-10 order-1 sm:order-2">
                 <div className="relative aspect-[4/5] border-2 border-[#B5832C] bg-[#F7E8C6] overflow-hidden">
                   <TextileArtwork
@@ -204,39 +210,34 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                     className="absolute bottom-3.5 right-3.5 bg-[#2F0710]/90 hover:bg-[#4A0D1B] border border-[#B5832C] text-[#FDF3DC] px-3 py-2 text-[9px] font-semibold tracking-[0.14em] uppercase inline-flex items-center gap-1.5 transition-colors min-h-[36px]"
                   >
                     <ZoomIn className="w-3.5 h-3.5 text-[#E5C37A]" aria-hidden="true" />
-                    <span>4K THREAD MACRO</span>
+                    <span>4K WEAVE ZOOM</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Editorial Spec & Purchase Module */}
+          {/* RIGHT: Specification & Bag Controls */}
           <aside className="lg:col-span-6 bg-[#FFFFFF] border border-[#DFCCA6] p-6 sm:p-8 space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
-                <span className="h-[1px] w-6 bg-[#B5832C]" aria-hidden="true" />
+                <LotusMotif className="w-5 h-4" color="#4A0D1B" accentColor="#B5832C" />
                 <span className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#7D5718]">
-                  TRADITIONAL ELEGANCE
+                  {product.categoryLabel.toUpperCase()}
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-xs text-[#241214]">
-                <Star className="w-3.5 h-3.5 fill-[#B5832C] text-[#B5832C]" aria-hidden="true" />
-                <span className="font-semibold tabular-nums">{product.heritageRating}</span>
-                <span className="text-[#5E4346]">({product.reviewCount} Reviews)</span>
-              </div>
+              <span className="text-[10px] font-semibold tracking-[0.12em] uppercase text-[#164A37]">
+                {product.statusText}
+              </span>
             </div>
 
             <div className="space-y-2">
               <h1 className="font-serif text-3xl sm:text-4xl text-[#4A0D1B] leading-tight">
                 {product.title}
               </h1>
-              <p className="text-xs text-[#5E4346] tracking-wide">
-                {product.weaveType} &nbsp;|&nbsp; Rich Zari Border &nbsp;|&nbsp; Effortless Royal Drape
-              </p>
+              <p className="text-xs text-[#5E4346] leading-relaxed">{product.subtitle}</p>
             </div>
 
-            {/* Price & Archival Badge */}
             <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-[#F7E8C6]">
               <span className="font-serif text-3xl sm:text-4xl font-semibold text-[#241214] tabular-nums">
                 {formatPrice(product.priceINR, currency)}
@@ -246,12 +247,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   {formatPrice(product.originalPriceINR, currency)}
                 </span>
               )}
-              <span className="px-3 py-1 rounded-full bg-[#4A0D1B] text-[#E5C37A] text-[10px] font-semibold tracking-[0.12em] uppercase">
-                {product.statusText}
+              <span className="px-3 py-1 rounded-full bg-[#F7E8C6] border border-[#B5832C]/50 text-[#4A0D1B] text-[10px] font-semibold tracking-[0.12em] uppercase">
+                USE {BRAND_INFO.welcomePromoCode} FOR 5% OFF 1ST ORDER
               </span>
             </div>
 
-            {/* 6-Tile Feature Icon Matrix (Inspired by Georgette Saree Set) */}
+            {/* 6-Tile Spec Highlights */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
               {featureMatrix.map((feat) => (
                 <div
@@ -269,24 +270,49 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               ))}
             </div>
 
-            {/* Signature Quote */}
-            <div className="flex items-center justify-between py-2 border-y border-[#F7E8C6]">
-              <p className="font-serif italic text-lg text-[#4A0D1B]">
-                Grace in Every Thread <span className="text-[#D87277]" aria-hidden="true">✿</span>
-              </p>
-              <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#7D5718]">
-                Where Heritage Meets Heart
-              </span>
-            </div>
-
-            {/* Available Colors (Circular Swatches) */}
+            {/* SIZE SELECTOR (PDF SIZES: Free Size / 38–44 / Boys 18–36 / Girls 1–10Y) */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between text-[10px]">
                 <span className="font-semibold tracking-[0.14em] uppercase text-[#5E4346]">
-                  AVAILABLE COLORWAY:{' '}
-                  <strong className="text-[#4A0D1B]">{selectedColorway}</strong>
+                  SELECT SIZE: <strong className="text-[#4A0D1B]">{selectedSize}</strong>
                 </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenPolicyTab('size-chart')}
+                  className="inline-flex items-center gap-1 font-semibold tracking-[0.12em] uppercase text-[#4A0D1B] hover:text-[#7D5718] underline underline-offset-2"
+                >
+                  <Ruler className="w-3 h-3" aria-hidden="true" />
+                  <span>SIZE CHART</span>
+                </button>
               </div>
+              <div className="flex flex-wrap gap-2">
+                {product.availableSizes.map((sz) => {
+                  const active = sz === selectedSize;
+                  return (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setSelectedSize(sz)}
+                      aria-pressed={active}
+                      className={`px-3.5 py-2 text-xs font-semibold tracking-[0.1em] uppercase border transition-colors min-h-[38px] ${
+                        active
+                          ? 'bg-[#4A0D1B] text-[#FDF3DC] border-[#4A0D1B]'
+                          : 'bg-[#FDF3DC]/60 text-[#241214] border-[#DFCCA6] hover:border-[#4A0D1B]'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-[#5E4346]">{product.sizeNote}</p>
+            </div>
+
+            {/* AVAILABLE COLORWAYS */}
+            <div className="space-y-2.5">
+              <span className="block text-[10px] font-semibold tracking-[0.14em] uppercase text-[#5E4346]">
+                AVAILABLE COLOR: <strong className="text-[#4A0D1B]">{selectedColorway}</strong>
+              </span>
               <div className="flex flex-wrap items-center gap-3">
                 {product.colorways.map((cw) => {
                   const active = cw.name === selectedColorway;
@@ -295,94 +321,95 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                       key={cw.name}
                       type="button"
                       onClick={() => setSelectedColorway(cw.name)}
-                      aria-label={`Select colorway ${cw.name}`}
+                      aria-label={`Select color ${cw.name}`}
                       aria-pressed={active}
-                      className={`flex flex-col items-center gap-1 p-1 border-b-2 transition-all ${
-                        active ? 'border-[#4A0D1B]' : 'border-transparent opacity-80 hover:opacity-100'
+                      className={`flex items-center gap-2 px-2.5 py-1.5 border transition-all ${
+                        active ? 'border-[#4A0D1B] bg-[#FDF3DC]' : 'border-[#DFCCA6] hover:border-[#B5832C]'
                       }`}
                     >
                       <span
-                        className={`w-9 h-9 rounded-full border-2 ${
-                          active ? 'border-[#B5832C] ring-1 ring-[#4A0D1B]' : 'border-[#DFCCA6]'
-                        }`}
+                        className="w-5 h-5 rounded-full border border-[#DFCCA6]"
                         style={{ backgroundColor: cw.hex }}
                       />
+                      <span className="text-[10px] font-medium text-[#241214]">{cw.name}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Atelier Bespoke Finishing */}
-            <div className="bg-[#FDF3DC] border border-[#DFCCA6] p-4 space-y-3.5">
-              <div className="flex items-center justify-between text-[10px] font-semibold tracking-[0.14em] uppercase">
-                <span className="text-[#4A0D1B]">ATELIER BESPOKE FINISHING</span>
-                <span className="text-[#7D5718]">CUSTOMIZED IN BHARAT</span>
-              </div>
-
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs">
-                <input
-                  type="checkbox"
-                  checked={fallPico}
-                  onChange={(e) => setFallPico(e.target.checked)}
-                  className="mt-0.5 accent-[#4A0D1B] w-4 h-4"
-                />
-                <div className="flex-1 flex justify-between gap-2">
-                  <span className="font-medium text-[#241214]">
-                    Fall, Pico &amp; Hand-Rolled Silk Latkan Tassels
-                  </span>
-                  <span className="text-[9px] font-semibold tracking-[0.12em] uppercase text-[#7D5718]">
-                    COMPLIMENTARY
-                  </span>
+            {/* SAREE FINISHING OPTIONS */}
+            {isSaree && (
+              <div className="bg-[#FDF3DC] border border-[#DFCCA6] p-4 space-y-3.5">
+                <div className="flex items-center justify-between text-[10px] font-semibold tracking-[0.14em] uppercase">
+                  <span className="text-[#4A0D1B]">SAREE FINISHING PREFERENCES</span>
+                  <span className="text-[#7D5718]">KOLKATA STUDIO</span>
                 </div>
-              </label>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPleatArch('traditional')}
-                  aria-pressed={pleatArch === 'traditional'}
-                  className={`py-2 px-3 text-[10px] font-semibold tracking-[0.1em] uppercase border min-h-[38px] ${
-                    pleatArch === 'traditional'
-                      ? 'bg-[#FFFFFF] border-[#4A0D1B] text-[#4A0D1B]'
-                      : 'bg-transparent border-[#DFCCA6] text-[#5E4346]'
-                  }`}
-                >
-                  TRADITIONAL UNSTITCHED
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPleatArch('pre-pleated')}
-                  aria-pressed={pleatArch === 'pre-pleated'}
-                  className={`py-2 px-3 text-[10px] font-semibold tracking-[0.1em] uppercase border min-h-[38px] ${
-                    pleatArch === 'pre-pleated'
-                      ? 'bg-[#FFFFFF] border-[#4A0D1B] text-[#4A0D1B]'
-                      : 'bg-transparent border-[#DFCCA6] text-[#5E4346]'
-                  }`}
-                >
-                  PRE-PLEATED (+3 DAYS)
-                </button>
-              </div>
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={fallPico}
+                    onChange={(e) => setFallPico(e.target.checked)}
+                    className="mt-0.5 accent-[#4A0D1B] w-4 h-4"
+                  />
+                  <div className="flex-1 flex justify-between gap-2">
+                    <span className="font-medium text-[#241214]">
+                      Complimentary Fall &amp; Pico Finishing
+                    </span>
+                    <span className="text-[9px] font-semibold tracking-[0.12em] uppercase text-[#7D5718]">
+                      COMPLIMENTARY
+                    </span>
+                  </div>
+                </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs pt-2 border-t border-[#DFCCA6]">
-                <input
-                  type="checkbox"
-                  checked={blouseTailoring}
-                  onChange={(e) => setBlouseTailoring(e.target.checked)}
-                  className="mt-0.5 accent-[#4A0D1B] w-4 h-4"
-                />
-                <div className="flex-1 flex justify-between gap-2">
-                  <span className="font-medium text-[#241214]">
-                    Made-to-Measure Blouse Tailoring
-                  </span>
-                  <span className="font-semibold text-[#4A0D1B] tabular-nums">
-                    +{formatPrice(4500, currency)}
-                  </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPleatArch('traditional')}
+                    aria-pressed={pleatArch === 'traditional'}
+                    className={`py-2 px-3 text-[10px] font-semibold tracking-[0.1em] uppercase border min-h-[38px] ${
+                      pleatArch === 'traditional'
+                        ? 'bg-[#FFFFFF] border-[#4A0D1B] text-[#4A0D1B]'
+                        : 'bg-transparent border-[#DFCCA6] text-[#5E4346]'
+                    }`}
+                  >
+                    TRADITIONAL UNSTITCHED
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPleatArch('pre-pleated')}
+                    aria-pressed={pleatArch === 'pre-pleated'}
+                    className={`py-2 px-3 text-[10px] font-semibold tracking-[0.1em] uppercase border min-h-[38px] ${
+                      pleatArch === 'pre-pleated'
+                        ? 'bg-[#FFFFFF] border-[#4A0D1B] text-[#4A0D1B]'
+                        : 'bg-transparent border-[#DFCCA6] text-[#5E4346]'
+                    }`}
+                  >
+                    PRE-PLEATED (+3 DAYS)
+                  </button>
                 </div>
-              </label>
-            </div>
 
-            {/* Primary CTA Buttons */}
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs pt-2 border-t border-[#DFCCA6]">
+                  <input
+                    type="checkbox"
+                    checked={blouseTailoring}
+                    onChange={(e) => setBlouseTailoring(e.target.checked)}
+                    className="mt-0.5 accent-[#4A0D1B] w-4 h-4"
+                  />
+                  <div className="flex-1 flex justify-between gap-2">
+                    <span className="font-medium text-[#241214]">
+                      Custom Blouse Stitching (Sizes 38–44)
+                    </span>
+                    <span className="font-semibold text-[#4A0D1B] tabular-nums">
+                      +{formatPrice(1200, currency)}
+                    </span>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            {/* CTA Buttons */}
             <div className="space-y-2.5">
               <div className="flex gap-2.5">
                 <button
@@ -393,14 +420,14 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <ShoppingBag className="w-4 h-4 text-[#E5C37A]" aria-hidden="true" />
                   <span>
                     {addedFeedback
-                      ? 'ADDED TO ACQUISITION BAG'
-                      : `ACQUIRE PIECE — ${formatPrice(totalUnitPriceINR, currency)}`}
+                      ? 'ADDED TO BAG'
+                      : `ADD TO BAG — ${formatPrice(totalUnitPriceINR, currency)}`}
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onToggleWishlist(product.id)}
-                  aria-label={isSaved ? 'Remove from saved' : 'Save heirloom'}
+                  aria-label={isSaved ? 'Remove from wishlist' : 'Save to wishlist'}
                   aria-pressed={isSaved}
                   className="w-12 min-h-[48px] border border-[#DFCCA6] hover:border-[#4A0D1B] flex items-center justify-center text-[#4A0D1B]"
                 >
@@ -413,32 +440,32 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
               <button
                 type="button"
-                onClick={onOpenConcierge}
+                onClick={onOpenContact}
                 className="w-full border border-[#DFCCA6] hover:border-[#4A0D1B] bg-[#FDF3DC] py-3 px-4 text-[10px] font-semibold tracking-[0.14em] uppercase text-[#4A0D1B] inline-flex items-center justify-center gap-2 transition-colors min-h-[42px]"
               >
-                <Video className="w-3.5 h-3.5 text-[#7D5718]" aria-hidden="true" />
-                <span>SCHEDULE PRIVATE VIDEO WALKTHROUGH</span>
+                <MessageCircle className="w-3.5 h-3.5 text-[#164A37]" aria-hidden="true" />
+                <span>WHATSAPP ENQUIRY ({BRAND_INFO.whatsappNumbers[0]})</span>
               </button>
             </div>
 
             {/* Delivery Check */}
             <form onSubmit={handleVerifyPincode} className="flex gap-2 pt-1">
               <label htmlFor="pdp-pincode" className="sr-only">
-                Enter delivery PIN code
+                Enter delivery PIN or postal code
               </label>
               <input
                 id="pdp-pincode"
                 type="text"
                 value={pincode}
                 onChange={(e) => setPincode(e.target.value)}
-                placeholder="Check insured delivery PIN (e.g. 110001)"
+                placeholder="Check India / Worldwide postal code (e.g. 700161)"
                 className="flex-1 bg-[#FDF3DC] border border-[#DFCCA6] px-3 py-2 text-xs text-[#241214] min-h-[40px]"
               />
               <button
                 type="submit"
                 className="px-4 py-2 bg-[#B5832C] hover:bg-[#9E7022] text-[#2F0710] text-[10px] font-bold tracking-[0.14em] uppercase min-h-[40px]"
               >
-                VERIFY
+                CHECK
               </button>
             </form>
             {pincodeResult && (
@@ -450,61 +477,22 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           </aside>
         </div>
 
-        {/* 4-COLUMN DETAIL FEATURE PLATES (Inspired directly by Georgette Saree Set) */}
-        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {[
-            {
-              title: 'Artisanal Blouse Piece',
-              desc: 'Includes unstitched matching handwoven blouse fabric with coordinated zari border.',
-              artwork: 'empress-reverse-weave' as const,
-            },
-            {
-              title: 'Pure Handloom Weave',
-              desc: `${product.fiberComposition} woven with zero motorized powerloom intervention.`,
-              artwork: product.artworkId,
-            },
-            {
-              title: 'Rich Zari Border',
-              desc: 'Individually interlocked border motifs creating a royal heirloom silhouette.',
-              artwork: 'empress-kadhwa-macro' as const,
-            },
-            {
-              title: 'Complete Heirloom Set',
-              desc: '5.5m draped saree + 0.8m blouse piece sealed in acid-free archival muslin.',
-              artwork: 'empress-pit-loom' as const,
-            },
-          ].map((card) => (
-            <div
-              key={card.title}
-              className="bg-[#FFFFFF] border border-[#DFCCA6] overflow-hidden flex flex-col"
-            >
-              <div className="aspect-[4/3] overflow-hidden">
-                <TextileArtwork artworkId={card.artwork} alt={card.title} className="w-full h-full" />
-              </div>
-              <div className="p-4 text-center space-y-1">
-                <h2 className="font-serif text-lg text-[#4A0D1B]">{card.title}</h2>
-                <p className="text-xs text-[#5E4346] leading-relaxed">{card.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* PRODUCT DETAILS SPEC SHEET + GARMENT PROVENANCE LEDGER */}
+        {/* PRODUCT SPECIFICATIONS & CARE ACCORDIONS */}
         <div className="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left: Product Details Specs */}
           <div className="lg:col-span-5 bg-[#FFFFFF] border border-[#DFCCA6] p-6 sm:p-7 space-y-4">
-            <h2 className="font-serif text-2xl text-[#4A0D1B] border-b border-[#F7E8C6] pb-3">
-              Product Details
-            </h2>
+            <div className="flex items-center justify-between border-b border-[#F7E8C6] pb-3">
+              <h2 className="font-serif text-2xl text-[#4A0D1B]">Product Specifications</h2>
+              <BenarasGhatMotif className="w-20 h-6" color="#B5832C" accentColor="#4A0D1B" />
+            </div>
             <dl className="space-y-3 text-xs">
               {[
-                ['Fabric', product.fiberComposition],
-                ['Blouse', '0.8 m Unstitched Matching Piece'],
-                ['Pattern', product.weaveType],
-                ['Border', 'Tested Pure Zari Border'],
-                ['Length', 'Saree – 5.5 m | Blouse – 0.8 m'],
-                ['Loom Origin', product.loomOrigin],
-                ['Master Artisan', product.masterCraftsman],
+                ['Category', product.categoryLabel],
+                ['Fabric & Material', product.fiberComposition],
+                ['Craft / Technique', product.weaveType],
+                ['Available Sizes', product.availableSizes.join(', ')],
+                ['Dimensions / Fit', product.sizeNote],
+                ['Origin Region', product.loomOrigin],
+                ['Stock Status', product.statusText],
               ].map(([label, val]) => (
                 <div key={label} className="flex justify-between gap-4 py-1.5 border-b border-[#FDF3DC]">
                   <dt className="font-semibold text-[#5E4346]">{label}</dt>
@@ -512,51 +500,25 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 </div>
               ))}
             </dl>
-
-            {/* Cryptographic QR Seal */}
-            <div className="bg-[#4A0D1B] text-[#FDF3DC] p-4 flex items-center justify-between gap-3 dark-surface">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#FDF3DC] text-[#4A0D1B] flex items-center justify-center shrink-0">
-                  <QrCode className="w-8 h-8" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#E5C37A]">
-                    SOVEREIGN SEAL · {product.archiveRef}
-                  </p>
-                  <p className="font-serif text-base">Cryptographic Provenance</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenQrDossier}
-                className="px-3 py-2 bg-[#B5832C] text-[#2F0710] text-[9px] font-bold tracking-[0.12em] uppercase shrink-0"
-              >
-                VERIFY
-              </button>
-            </div>
           </div>
 
-          {/* Right: Editorial Accordions */}
-          <div
-            id="care-accordions"
-            className="lg:col-span-7 bg-[#FFFFFF] border border-[#DFCCA6] p-6 sm:p-7 space-y-4"
-          >
+          <div className="lg:col-span-7 bg-[#FFFFFF] border border-[#DFCCA6] p-6 sm:p-7 space-y-4">
             <h2 className="font-serif text-2xl text-[#4A0D1B] border-b border-[#F7E8C6] pb-3">
-              Lineage, Craftsmanship &amp; Care
+              Washing, Care &amp; Policies
             </h2>
             <div className="divide-y divide-[#F7E8C6]">
               {[
                 {
-                  title: 'The Legend of Botanical & Lac Dyeing',
-                  body: 'Prepared in slow heritage vats using lac resin, madder root, and mineral mordants so colors mature gracefully without fading across decades.',
+                  title: 'Washing & Care Instructions',
+                  body: product.careInstructions,
                 },
                 {
-                  title: 'The Handloom Weaving Technique Explained',
-                  body: `Crafted over ${product.weavingDuration} on a ${product.loomMechanism} (${product.warpDensity}), locking each motif cleanly with zero rough reverse floats.`,
+                  title: 'Shipping & Delivery Coverage',
+                  body: `Dispatches from our Newtown, Kolkata store across ${BRAND_INFO.deliveryLocations}. Estimated delivery: 4–7 business days in India and 7–14 business days internationally.`,
                 },
                 {
-                  title: 'Heirloom Preservation & Generational Care',
-                  body: 'Store folded inside unbleached malmal cotton or acid-free archival tissue. Refold along alternate creases every four months to preserve pure silk and zari suppleness.',
+                  title: 'Returns, Exchanges & Payments',
+                  body: `Return or size-exchange requests may be raised within 7 days of delivery for unworn items with tags intact. Supported payments: ${BRAND_INFO.paymentMethodsNote}.`,
                 },
               ].map((acc, idx) => {
                 const isOpen = openAccordion === idx;
@@ -583,32 +545,48 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 );
               })}
             </div>
+            <div className="pt-2 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => onOpenPolicyTab('care')}
+                className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#4A0D1B] underline underline-offset-2"
+              >
+                FULL CARE GUIDE
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenPolicyTab('returns')}
+                className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#4A0D1B] underline underline-offset-2"
+              >
+                RETURN &amp; REFUND POLICY
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* DARK WINE BOTTOM TRUST & BUY NOW BAR (Inspired by Georgette Saree Set) */}
+      {/* Bottom Trust Bar */}
       <section className="bg-[#2F0710] text-[#FDF3DC] border-y-2 border-[#B5832C] py-6 dark-surface">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 flex-1 w-full">
             <div className="flex items-center gap-3">
               <Plane className="w-5 h-5 text-[#E5C37A] shrink-0" aria-hidden="true" />
               <div className="text-xs">
-                <p className="font-semibold">Fast &amp; Insured Delivery</p>
-                <p className="text-[#DFCCA6] text-[11px]">Worldwide cedarwood dispatch</p>
+                <p className="font-semibold">India &amp; Worldwide</p>
+                <p className="text-[#DFCCA6] text-[11px]">Dispatched from Kolkata</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <ShieldCheck className="w-5 h-5 text-[#E5C37A] shrink-0" aria-hidden="true" />
               <div className="text-xs">
-                <p className="font-semibold">Trusted Quality Assured</p>
-                <p className="text-[#DFCCA6] text-[11px]">Silk Mark &amp; GI verified</p>
+                <p className="font-semibold">UPI &amp; Card Only</p>
+                <p className="text-[#DFCCA6] text-[11px]">GSTIN {BRAND_INFO.gstNumber}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <RefreshCw className="w-5 h-5 text-[#E5C37A] shrink-0" aria-hidden="true" />
               <div className="text-xs">
-                <p className="font-semibold">Easy Heritage Exchange</p>
+                <p className="font-semibold">Easy Exchange</p>
                 <p className="text-[#DFCCA6] text-[11px]">Within 7 days of delivery</p>
               </div>
             </div>
@@ -623,88 +601,73 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             <span>BUY NOW · {formatPrice(totalUnitPriceINR, currency)}</span>
           </button>
         </div>
-
-        <div className="mt-5 pt-3 border-t border-[#4A0D1B] text-center">
-          <p className="text-[10px] tracking-[0.26em] uppercase text-[#E5C37A]">
-            TIMELESS TRADITION &nbsp;✦&nbsp; MODERN YOU
-          </p>
-        </div>
       </section>
 
-      {/* Complete The Regal Drape */}
-      <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-7">
-          <div>
-            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#7D5718]">
-              CURATED HEIRLOOM PAIRING
-            </p>
-            <h2 className="font-serif text-3xl text-[#4A0D1B] mt-1">Complete The Regal Drape</h2>
-          </div>
-          <p className="font-serif italic text-xs text-[#5E4346]">
-            Archival pairings curated by Priyontor&apos;s Senior Draper.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {pairingProducts.map((acc) => (
-            <div
-              key={acc.id}
-              className="bg-[#FFFFFF] border border-[#DFCCA6] p-4 sm:p-5 flex flex-col sm:flex-row gap-5 items-stretch"
-            >
-              <div className="sm:w-36 aspect-square shrink-0 border border-[#F7E8C6] overflow-hidden">
-                <TextileArtwork artworkId={acc.artworkId} alt={acc.title} className="w-full h-full" />
-              </div>
-              <div className="flex-1 flex flex-col justify-between space-y-3">
-                <div>
-                  <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#7D5718]">
-                    {acc.guildLabel}
-                  </p>
-                  <h3 className="font-serif text-xl text-[#241214] mt-0.5">{acc.title}</h3>
-                  <p className="text-xs text-[#5E4346] mt-1">{acc.description}</p>
-                </div>
-                <div className="flex items-center justify-between gap-3 pt-2">
-                  <span className="text-base font-semibold text-[#4A0D1B] tabular-nums">
-                    {formatPrice(acc.priceINR, currency)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onAddToBag({
-                        product: acc,
-                        colorway: acc.colorways[0]?.name ?? 'ROYAL',
-                        pleatArchitecture: 'traditional',
-                        fallPico: false,
-                        blouseTailoring: false,
-                      })
-                    }
-                    className="bg-[#4A0D1B] hover:bg-[#390914] text-[#FDF3DC] px-4 py-2 text-[10px] font-semibold tracking-[0.14em] uppercase min-h-[38px]"
-                  >
-                    ADD TO ENSEMBLE
-                  </button>
-                </div>
-              </div>
+      {/* Pair With Priyontor Blouses / Sarees */}
+      {pairingProducts.length > 0 && (
+        <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-7">
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#7D5718]">
+                PAIR YOUR ENSEMBLE
+              </p>
+              <h2 className="font-serif text-3xl text-[#4A0D1B] mt-1">
+                {isSaree ? 'Pair with Priyontor Blouses (Sizes 38–44)' : 'Explore Signature Sarees'}
+              </h2>
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
 
-      {/* More Archive Treasures */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {pairingProducts.map((acc) => (
+              <div
+                key={acc.id}
+                className="bg-[#FFFFFF] border border-[#DFCCA6] p-4 sm:p-5 flex flex-col sm:flex-row gap-5 items-stretch"
+              >
+                <div className="sm:w-36 aspect-square shrink-0 border border-[#F7E8C6] overflow-hidden">
+                  <TextileArtwork artworkId={acc.artworkId} alt={acc.title} className="w-full h-full" />
+                </div>
+                <div className="flex-1 flex flex-col justify-between space-y-3">
+                  <div>
+                    <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#7D5718]">
+                      {acc.categoryLabel} · {acc.secondaryBadge}
+                    </p>
+                    <h3 className="font-serif text-xl text-[#241214] mt-0.5">{acc.title}</h3>
+                    <p className="text-xs text-[#5E4346] mt-1">{acc.description}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <span className="text-base font-semibold text-[#4A0D1B] tabular-nums">
+                      {formatPrice(acc.priceINR, currency)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onSelectProduct(acc)}
+                      className="bg-[#4A0D1B] hover:bg-[#390914] text-[#FDF3DC] px-4 py-2 text-[10px] font-semibold tracking-[0.14em] uppercase min-h-[38px]"
+                    >
+                      VIEW &amp; SELECT SIZE
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Related Catalog Pieces */}
       <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pb-14">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-7">
           <div>
             <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#7D5718]">
-              HERITAGE CORRIDOR
+              MORE FROM PRIYONTOR
             </p>
-            <h2 className="font-serif text-3xl text-[#4A0D1B] mt-1">
-              More from Varanasi Archive Treasures
-            </h2>
+            <h2 className="font-serif text-3xl text-[#4A0D1B] mt-1">Continue Exploring</h2>
           </div>
           <button
             type="button"
             onClick={() => onNavigate('collections')}
             className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-[0.14em] uppercase text-[#4A0D1B] hover:text-[#7D5718]"
           >
-            <span>EXPLORE ALL WEAVES</span>
+            <span>VIEW ALL COLLECTIONS</span>
             <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
@@ -735,7 +698,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 </div>
                 <div className="p-4 space-y-1">
                   <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#7D5718]">
-                    {item.guildLabel}
+                    {item.categoryLabel}
                   </p>
                   <h3 className="font-serif text-lg text-[#241214]">
                     <button
@@ -753,7 +716,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   {formatPrice(item.priceINR, currency)}
                 </span>
                 <span className="text-[9px] font-semibold tracking-[0.12em] uppercase text-[#7D5718]">
-                  {item.statusText}
+                  {item.secondaryBadge}
                 </span>
               </div>
             </article>

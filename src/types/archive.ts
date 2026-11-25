@@ -1,20 +1,20 @@
-export type PageRoute = 'home' | 'collections' | 'discover' | 'pdp';
+export type PageRoute = 'home' | 'collections' | 'discover' | 'pdp' | 'checkout';
 
 export type CurrencyCode = 'INR' | 'USD' | 'GBP' | 'EUR';
 
 export type SareeMapCategoryId =
-  | 'pashmina'
-  | 'bandhani'
-  | 'patola'
-  | 'paithani'
-  | 'ilkal'
-  | 'kasavu'
   | 'banarasi'
+  | 'bhagalpuri'
+  | 'moirang-phee'
+  | 'pochampally'
+  | 'chanderi-maheshwari'
+  | 'jamdani-kantha'
+  | 'kani-ari'
+  | 'ajrakh'
+  | 'bandhej'
   | 'chikankari'
-  | 'assam'
-  | 'baluchari'
-  | 'sambalpuri'
-  | 'kanjivaram';
+  | 'muga-cotton'
+  | 'mangalgiri';
 
 export interface SareeMapHotspot {
   id: SareeMapCategoryId;
@@ -29,6 +29,16 @@ export interface SareeMapHotspot {
   hotspotBox: { left: string; top: string; width: string; height: string };
   pinPos: { left: string; top: string };
 }
+
+export type ProductCategoryId =
+  | 'sarees'
+  | 'designer-sarees'
+  | 'mens-punjabi'
+  | 'kids-wear'
+  | 'blouses'
+  | 'womens-sets';
+
+export type WardrobeSegment = 'her' | 'his' | 'little';
 
 export type TextileArtworkId =
   | 'empress-varanasi'
@@ -85,12 +95,14 @@ export interface Product {
   title: string;
   subtitle: string;
   description: string;
-  category: 'sarees' | 'lehengas' | 'kurtas' | 'anarkalis' | 'shawls' | 'accessories';
+  category: ProductCategoryId;
+  categoryLabel: string;
+  wardrobe: WardrobeSegment;
   regionId: 'east' | 'north' | 'west' | 'south' | 'northeast';
   regionLabel: string;
   guildLabel: string;
   weaveType: string;
-  fiberTag: 'KATAN' | 'TUSSAR' | 'MULBERRY' | 'PASHMINA' | 'COTTON' | 'MUGA';
+  fiberTag: 'SILK' | 'TUSSAR' | 'COTTON' | 'MUGA' | 'KANI' | 'GEORGETTE';
   mapCategory?: SareeMapCategoryId;
   originBadge: string;
   secondaryBadge?: string;
@@ -114,6 +126,9 @@ export interface Product {
   craftsmanBio: string;
   warpDensity: string;
   weftDensity: string;
+  availableSizes: string[];
+  sizeNote: string;
+  careInstructions: string;
   artworkId: TextileArtworkId;
   galleryArtworks?: { label: string; artworkId: TextileArtworkId }[];
   colorways: ProductColorway[];
@@ -159,6 +174,7 @@ export interface CorridorRegion {
 export interface BagItem {
   key: string;
   product: Product;
+  selectedSize: string;
   colorway: string;
   pleatArchitecture: 'traditional' | 'pre-pleated';
   fallPico: boolean;
@@ -168,7 +184,8 @@ export interface BagItem {
 }
 
 export interface FilterState {
-  category: 'all' | 'sarees' | 'lehengas' | 'kurtas' | 'anarkalis';
+  category: 'all' | ProductCategoryId;
+  wardrobe: 'all' | WardrobeSegment;
   mapCategory: SareeMapCategoryId | null;
   regions: string[];
   weaves: string[];
@@ -178,4 +195,69 @@ export interface FilterState {
   readiness: 'all' | 'ready' | 'active' | 'bespoke';
   sortBy: 'curator' | 'price-asc' | 'price-desc' | 'hours';
   searchQuery: string;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  city?: string;
+  memberTier: string;
+  wishlistIds: string[];
+  createdAt: string;
+}
+
+export type ShippingMethodId = 'india-courier' | 'worldwide-courier' | 'kolkata-store-pickup';
+
+export type PaymentMethodId = 'card' | 'upi';
+
+export interface OrderShippingAddress {
+  fullName: string;
+  email: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+export interface OrderItemSummary {
+  productId: string;
+  title: string;
+  archiveRef: string;
+  originBadge: string;
+  artworkId: TextileArtworkId;
+  selectedSize: string;
+  colorway: string;
+  pleatArchitecture: 'traditional' | 'pre-pleated';
+  fallPico: boolean;
+  blouseTailoring: boolean;
+  quantity: number;
+  unitPriceINR: number;
+  lineTotalINR: number;
+}
+
+export interface OrderRecord {
+  id: string;
+  orderNumber: string;
+  userId: string | null;
+  status: 'confirmed';
+  createdAt: string;
+  estimatedDispatch: string;
+  currency: CurrencyCode;
+  shippingAddress: OrderShippingAddress;
+  shippingMethod: ShippingMethodId;
+  shippingLabel: string;
+  shippingFeeINR: number;
+  paymentMethod: PaymentMethodId;
+  paymentSummary: string;
+  promoCode?: string;
+  discountLabel?: string;
+  discountAmountINR: number;
+  dedicationNote?: string;
+  items: OrderItemSummary[];
+  subtotalINR: number;
+  totalINR: number;
 }

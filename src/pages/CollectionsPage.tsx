@@ -2,19 +2,27 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowRight,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Heart,
   LayoutGrid,
   Plane,
   ShieldCheck,
+  ShoppingBag,
   SlidersHorizontal,
   Sparkles,
   SquareStack,
   X,
 } from 'lucide-react';
 import { PRODUCTS, SAREE_MAP_HOTSPOTS, formatPrice } from '../data/archiveData';
-import { CurrencyCode, FilterState, PageRoute, Product } from '../types/archive';
+import { BRAND_INFO, PolicyEntry } from '../data/priyontorInfo';
+import {
+  CurrencyCode,
+  FilterState,
+  PageRoute,
+  Product,
+  ProductCategoryId,
+  WardrobeSegment,
+} from '../types/archive';
+import { BenarasGhatMotif, LotusMotif } from '../components/HeritageMotifs';
 import { TextileArtwork } from '../components/TextileArtwork';
 
 interface CollectionsPageProps {
@@ -24,41 +32,11 @@ interface CollectionsPageProps {
   wishlistIds: string[];
   onToggleWishlist: (id: string) => void;
   onSelectProduct: (product: Product) => void;
+  onQuickAdd: (product: Product) => void;
   onNavigate: (page: PageRoute) => void;
-  onOpenConcierge: () => void;
+  onOpenPolicyTab: (tab: PolicyEntry['id'] | 'size-chart') => void;
+  onOpenContact: () => void;
 }
-
-const REGION_OPTIONS = [
-  { label: 'Uttar Pradesh (Varanasi / Lucknow)', count: 138 },
-  { label: 'West Bengal (Murshidabad / Shantipur)', count: 84 },
-  { label: 'Tamil Nadu (Kanchipuram)', count: 72 },
-  { label: 'Gujarat (Patan / Bhuj / Ahmedabad)', count: 48 },
-  { label: 'Kashmir Valley (Srinagar)', count: 34 },
-];
-
-const WEAVE_OPTIONS = [
-  { label: 'Kadwa & Kadhua Brocade', count: 89 },
-  { label: 'Supplementary Weft Jamdani', count: 64 },
-  { label: 'Double Ikat Patola', count: 19 },
-  { label: 'Kanchipuram Korvai Interlock', count: 58 },
-  { label: 'Hand-needle Sozni & Pashmina', count: 27 },
-  { label: 'Royal Gota Patti & Zardosi', count: 63 },
-];
-
-const FIBER_OPTIONS = [
-  { label: 'Katan Mulberry Silk', tag: 'KATAN', count: 142 },
-  { label: 'Wild Golden Assam Muga', tag: 'MUGA', count: 18 },
-  { label: 'Handspun Chanderi / Cotton', tag: 'COTTON', count: 52 },
-  { label: 'Ladakh Pure Pashmina Wool', tag: 'PASHMINA', count: 31 },
-  { label: 'Tussar & Ahimsa Silk', tag: 'TUSSAR', count: 29 },
-];
-
-const GI_OPTIONS = [
-  { label: 'GI Registered Lineage', count: 210 },
-  { label: 'Silk Mark India Authorized', count: 340 },
-  { label: 'Craftmark Certified Fair-Wage', count: 186 },
-  { label: 'National Handloom Registry', count: 482 },
-];
 
 export const CollectionsPage: React.FC<CollectionsPageProps> = ({
   currency,
@@ -67,19 +45,54 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
   wishlistIds,
   onToggleWishlist,
   onSelectProduct,
+  onQuickAdd,
   onNavigate,
-  onOpenConcierge,
+  onOpenPolicyTab,
+  onOpenContact,
 }) => {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [gridCols, setGridCols] = useState<3 | 2>(3);
-  const [visibleLimit, setVisibleLimit] = useState(9);
-  const [currentPage, setCurrentPage] = useState(1);
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
     region: true,
     weave: true,
     fiber: true,
-    gi: true,
   });
+
+  const regionOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of PRODUCTS) {
+      counts.set(p.regionLabel, (counts.get(p.regionLabel) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([label, count]) => ({ label, count }));
+  }, []);
+
+  const weaveOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of PRODUCTS) {
+      counts.set(p.weaveType, (counts.get(p.weaveType) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([label, count]) => ({ label, count }));
+  }, []);
+
+  const fiberOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of PRODUCTS) {
+      counts.set(p.fiberTag, (counts.get(p.fiberTag) ?? 0) + 1);
+    }
+    const labels: Record<string, string> = {
+      SILK: 'Pure Silk & Zari',
+      COTTON: 'Handloom Breathable Cotton',
+      TUSSAR: 'Bhagalpuri Ghicha Tussar',
+      MUGA: 'Golden Assam Muga Cotton',
+      KANI: 'Kashmiri Kani & Ari Blend',
+      GEORGETTE: 'Georgette & Bandhej',
+    };
+    return Array.from(counts.entries()).map(([tag, count]) => ({
+      tag,
+      label: labels[tag] ?? tag,
+      count,
+    }));
+  }, []);
 
   const toggleAccordion = (key: string) => {
     setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -102,42 +115,32 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
   const resetAllFilters = () => {
     onFiltersChange({
       category: 'all',
+      wardrobe: 'all',
       mapCategory: null,
       regions: [],
       weaves: [],
       fibers: [],
       giMarks: [],
-      maxPriceINR: 600000,
+      maxPriceINR: 25000,
       readiness: 'all',
       sortBy: 'curator',
       searchQuery: '',
     });
-    setVisibleLimit(9);
-    setCurrentPage(1);
   };
 
-  const catalogProducts = useMemo(() => {
-    return PRODUCTS.filter((p) => p.category !== 'accessories');
-  }, []);
-
   const filteredProducts = useMemo(() => {
-    let list = catalogProducts.filter((p) => {
+    let list = PRODUCTS.filter((p) => {
       if (filters.category !== 'all' && p.category !== filters.category) return false;
+      if (filters.wardrobe !== 'all' && p.wardrobe !== filters.wardrobe) return false;
       if (filters.mapCategory && p.mapCategory !== filters.mapCategory) return false;
       if (filters.regions.length > 0 && !filters.regions.includes(p.regionLabel)) return false;
       if (filters.weaves.length > 0 && !filters.weaves.includes(p.weaveType)) return false;
       if (filters.fibers.length > 0 && !filters.fibers.includes(p.fiberTag)) return false;
-      if (
-        filters.giMarks.length > 0 &&
-        !filters.giMarks.some((m) => p.giMarks.includes(m))
-      ) {
-        return false;
-      }
       if (p.priceINR > filters.maxPriceINR) return false;
-      if (filters.readiness !== 'all' && p.readiness !== filters.readiness) return false;
       if (filters.searchQuery.trim()) {
         const q = filters.searchQuery.toLowerCase();
-        const hay = `${p.title} ${p.subtitle} ${p.regionLabel} ${p.weaveType} ${p.guildLabel}`.toLowerCase();
+        const hay =
+          `${p.title} ${p.subtitle} ${p.regionLabel} ${p.weaveType} ${p.categoryLabel} ${p.guildLabel}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -149,12 +152,10 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
       list = [...list].sort((a, b) => b.priceINR - a.priceINR);
     } else if (filters.sortBy === 'hours') {
       list = [...list].sort((a, b) => b.craftHours - a.craftHours);
-    } else {
-      list = [...list].sort((a, b) => b.heritageRating - a.heritageRating);
     }
 
     return list;
-  }, [catalogProducts, filters]);
+  }, [filters]);
 
   const activeMapSpot = useMemo(
     () =>
@@ -164,21 +165,33 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
     [filters.mapCategory]
   );
 
-  const displayedProducts = filteredProducts.slice(0, visibleLimit);
-  const firstHalf = displayedProducts.slice(0, 6);
-  const secondHalf = displayedProducts.slice(6);
+  const firstHalf = filteredProducts.slice(0, 6);
+  const secondHalf = filteredProducts.slice(6);
 
   const activeChips: { label: string; onRemove: () => void }[] = [
+    ...(filters.wardrobe !== 'all'
+      ? [
+          {
+            label:
+              filters.wardrobe === 'her'
+                ? 'HER WARDROBE'
+                : filters.wardrobe === 'his'
+                  ? 'HIS WARDROBE'
+                  : 'LITTLE WARDROBE',
+            onRemove: () => onFiltersChange((p) => ({ ...p, wardrobe: 'all' })),
+          },
+        ]
+      : []),
     ...(activeMapSpot
       ? [
           {
-            label: `MAP: ${activeMapSpot.sareeName.toUpperCase()} (${activeMapSpot.state.toUpperCase()})`,
+            label: `${activeMapSpot.state.toUpperCase()}: ${activeMapSpot.sareeName.toUpperCase()}`,
             onRemove: () => onFiltersChange((p) => ({ ...p, mapCategory: null })),
           },
         ]
       : []),
     ...filters.regions.map((r) => ({
-      label: r.split('(')[0].trim().toUpperCase(),
+      label: r.toUpperCase(),
       onRemove: () => toggleArrayFilter('regions', r),
     })),
     ...filters.weaves.map((w) => ({
@@ -186,32 +199,47 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
       onRemove: () => toggleArrayFilter('weaves', w),
     })),
     ...filters.fibers.map((f) => ({
-      label: `${f} SILK`,
+      label: f,
       onRemove: () => toggleArrayFilter('fibers', f),
-    })),
-    ...filters.giMarks.map((g) => ({
-      label: g.toUpperCase(),
-      onRemove: () => toggleArrayFilter('giMarks', g),
     })),
   ];
 
-  if (filters.readiness !== 'all') {
-    activeChips.push({
-      label: `LOOM: ${filters.readiness.toUpperCase()}`,
-      onRemove: () => onFiltersChange((p) => ({ ...p, readiness: 'all' })),
-    });
-  }
-
   const categoryTabs: {
-    id: FilterState['category'];
+    id: 'all' | ProductCategoryId;
     label: string;
     count: number;
   }[] = [
-    { id: 'all', label: 'ALL ARCHIVES', count: 482 },
-    { id: 'sarees', label: 'SAREES & REGAL DRAPES', count: 214 },
-    { id: 'lehengas', label: 'LEHENGAS & SKIRT ENSEMBLES', count: 88 },
-    { id: 'kurtas', label: 'KURTAS & CO-ORD SETS', count: 46 },
-    { id: 'anarkalis', label: 'ANARKALIS & PESHWAS', count: 32 },
+    { id: 'all', label: 'ALL COLLECTIONS', count: PRODUCTS.length },
+    {
+      id: 'sarees',
+      label: 'INDIAN HERITAGE SAREES',
+      count: PRODUCTS.filter((p) => p.category === 'sarees').length,
+    },
+    {
+      id: 'designer-sarees',
+      label: 'DESIGNER SAREES',
+      count: PRODUCTS.filter((p) => p.category === 'designer-sarees').length,
+    },
+    {
+      id: 'womens-sets',
+      label: "CO-ORD & KURTA SETS",
+      count: PRODUCTS.filter((p) => p.category === 'womens-sets').length,
+    },
+    {
+      id: 'blouses',
+      label: 'BLOUSES',
+      count: PRODUCTS.filter((p) => p.category === 'blouses').length,
+    },
+    {
+      id: 'mens-punjabi',
+      label: "MENS' PUNJABI",
+      count: PRODUCTS.filter((p) => p.category === 'mens-punjabi').length,
+    },
+    {
+      id: 'kids-wear',
+      label: "KIDS' WEAR",
+      count: PRODUCTS.filter((p) => p.category === 'kids-wear').length,
+    },
   ];
 
   const renderSidebarContent = () => (
@@ -220,7 +248,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="w-3.5 h-3.5 text-[#4A0D1B]" aria-hidden="true" />
           <h2 className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#241214]">
-            CURATORIAL FILTERS
+            FILTER BY ATTRIBUTE
           </h2>
         </div>
         <button
@@ -232,7 +260,39 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         </button>
       </div>
 
-      {/* Active Chips */}
+      {/* Wardrobe Target Audience Filter */}
+      <div className="border-b border-[#DFCCA6] pb-4 space-y-2.5">
+        <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]">
+          AUDIENCE / WARDROBE
+        </p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { id: 'all' as const, label: 'ALL' },
+            { id: 'her' as const, label: 'WOMEN (HER)' },
+            { id: 'his' as const, label: 'MEN (HIS)' },
+            { id: 'little' as const, label: 'KIDS (LITTLE)' },
+          ].map((w) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() =>
+                onFiltersChange((prev) => ({
+                  ...prev,
+                  wardrobe: w.id as 'all' | WardrobeSegment,
+                }))
+              }
+              className={`py-2 px-2 text-[10px] font-semibold tracking-[0.1em] uppercase border ${
+                filters.wardrobe === w.id
+                  ? 'bg-[#4A0D1B] text-[#FDF3DC] border-[#4A0D1B]'
+                  : 'bg-[#FFFFFF] text-[#5E4346] border-[#DFCCA6] hover:border-[#4A0D1B]'
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {activeChips.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {activeChips.map((chip) => (
@@ -249,7 +309,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         </div>
       )}
 
-      {/* Region Accordion */}
+      {/* State & Region Accordion */}
       <div className="border-b border-[#DFCCA6] pb-4">
         <button
           type="button"
@@ -257,7 +317,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
           onClick={() => toggleAccordion('region')}
           className="w-full flex items-center justify-between py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]"
         >
-          <span>STATE &amp; REGIONAL GUILDS</span>
+          <span>STATE &amp; REGION</span>
           <ChevronDown
             className={`w-3.5 h-3.5 transition-transform ${openAccordions.region ? 'rotate-180' : ''}`}
             aria-hidden="true"
@@ -265,7 +325,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         </button>
         {openAccordions.region && (
           <div className="mt-3 space-y-2">
-            {REGION_OPTIONS.map((opt) => {
+            {regionOptions.map((opt) => {
               const checked = filters.regions.includes(opt.label);
               return (
                 <label
@@ -277,7 +337,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleArrayFilter('regions', opt.label)}
-                      className="accent-[#4A0D1B] w-3.5 h-3.5 rounded-none"
+                      className="accent-[#4A0D1B] w-3.5 h-3.5"
                     />
                     <span className={checked ? 'text-[#241214] font-medium' : ''}>
                       {opt.label}
@@ -291,7 +351,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         )}
       </div>
 
-      {/* Technique & Weave */}
+      {/* Craft & Weave */}
       <div className="border-b border-[#DFCCA6] pb-4">
         <button
           type="button"
@@ -299,7 +359,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
           onClick={() => toggleAccordion('weave')}
           className="w-full flex items-center justify-between py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]"
         >
-          <span>TECHNIQUE &amp; WEAVE</span>
+          <span>CRAFT &amp; SILHOUETTE</span>
           <ChevronDown
             className={`w-3.5 h-3.5 transition-transform ${openAccordions.weave ? 'rotate-180' : ''}`}
             aria-hidden="true"
@@ -307,7 +367,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         </button>
         {openAccordions.weave && (
           <div className="mt-3 space-y-2">
-            {WEAVE_OPTIONS.map((opt) => {
+            {weaveOptions.map((opt) => {
               const checked = filters.weaves.includes(opt.label);
               return (
                 <label
@@ -333,7 +393,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         )}
       </div>
 
-      {/* Fiber Origin */}
+      {/* Fabric & Material */}
       <div className="border-b border-[#DFCCA6] pb-4">
         <button
           type="button"
@@ -341,7 +401,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
           onClick={() => toggleAccordion('fiber')}
           className="w-full flex items-center justify-between py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]"
         >
-          <span>FABRIC &amp; FIBER ORIGIN</span>
+          <span>FABRIC &amp; MATERIAL</span>
           <ChevronDown
             className={`w-3.5 h-3.5 transition-transform ${openAccordions.fiber ? 'rotate-180' : ''}`}
             aria-hidden="true"
@@ -349,7 +409,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         </button>
         {openAccordions.fiber && (
           <div className="mt-3 space-y-2">
-            {FIBER_OPTIONS.map((opt) => {
+            {fiberOptions.map((opt) => {
               const checked = filters.fibers.includes(opt.tag);
               return (
                 <label
@@ -375,56 +435,14 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         )}
       </div>
 
-      {/* Government & GI Marks */}
-      <div className="border-b border-[#DFCCA6] pb-4">
-        <button
-          type="button"
-          aria-expanded={openAccordions.gi}
-          onClick={() => toggleAccordion('gi')}
-          className="w-full flex items-center justify-between py-1 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]"
-        >
-          <span>GOVERNMENT &amp; GI MARKS</span>
-          <ChevronDown
-            className={`w-3.5 h-3.5 transition-transform ${openAccordions.gi ? 'rotate-180' : ''}`}
-            aria-hidden="true"
-          />
-        </button>
-        {openAccordions.gi && (
-          <div className="mt-3 space-y-2">
-            {GI_OPTIONS.map((opt) => {
-              const checked = filters.giMarks.includes(opt.label);
-              return (
-                <label
-                  key={opt.label}
-                  className="flex items-center justify-between gap-2 text-xs text-[#5E4346] cursor-pointer hover:text-[#241214] py-0.5"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleArrayFilter('giMarks', opt.label)}
-                      className="accent-[#4A0D1B] w-3.5 h-3.5"
-                    />
-                    <span className={checked ? 'text-[#241214] font-medium' : ''}>
-                      {opt.label}
-                    </span>
-                  </span>
-                  <span className="text-[10px] text-[#7A6D65] tabular-nums">{opt.count}</span>
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Value Range Slider */}
+      {/* Price Range Slider (₹800 - ₹25,000 PDF Pricing) */}
       <div className="border-b border-[#DFCCA6] pb-4 space-y-3">
         <div className="flex items-center justify-between">
           <label
             htmlFor="price-range-slider"
             className="text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]"
           >
-            VALUE RANGE ({currency})
+            PRICE RANGE ({currency})
           </label>
           <span className="text-[10px] font-mono text-[#7D5718] tabular-nums">
             Up to {formatPrice(filters.maxPriceINR, currency)}
@@ -433,9 +451,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         <input
           id="price-range-slider"
           type="range"
-          min={20000}
-          max={600000}
-          step={5000}
+          min={1000}
+          max={25000}
+          step={500}
           value={filters.maxPriceINR}
           onChange={(e) =>
             onFiltersChange((prev) => ({ ...prev, maxPriceINR: Number(e.target.value) }))
@@ -443,55 +461,23 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
           className="w-full accent-[#4A0D1B] cursor-pointer"
         />
         <div className="flex justify-between text-[10px] text-[#5E4346] tabular-nums">
-          <span>{formatPrice(15000, currency)}</span>
-          <span>{formatPrice(600000, currency)}+</span>
+          <span>{formatPrice(800, currency)}</span>
+          <span>{formatPrice(25000, currency)}</span>
         </div>
       </div>
 
-      {/* Loom Status & Readiness */}
-      <div className="border-b border-[#DFCCA6] pb-4 space-y-2.5">
-        <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-[#241214]">
-          LOOM STATUS &amp; READINESS
+      <button
+        type="button"
+        onClick={() => onOpenPolicyTab('size-chart')}
+        className="w-full bg-[#FFFFFF] border border-[#DFCCA6] hover:border-[#4A0D1B] p-4 text-left space-y-1.5 transition-colors"
+      >
+        <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-[#4A0D1B]">
+          VIEW GARMENT SIZE CHART
         </p>
-        {[
-          { id: 'all', label: 'All Archive Allocations' },
-          { id: 'ready', label: 'Ready in Vault (Dispatches 48 hrs)' },
-          { id: 'active', label: 'On Active Master Loom (2–3 Weeks)' },
-          { id: 'bespoke', label: 'Bespoke Bridal Commission (6–12 Weeks)' },
-        ].map((opt) => (
-          <label
-            key={opt.id}
-            className="flex items-center gap-2.5 text-xs text-[#5E4346] cursor-pointer hover:text-[#241214]"
-          >
-            <input
-              type="radio"
-              name="loom-readiness"
-              checked={filters.readiness === opt.id}
-              onChange={() =>
-                onFiltersChange((prev) => ({
-                  ...prev,
-                  readiness: opt.id as FilterState['readiness'],
-                }))
-              }
-              className="accent-[#4A0D1B]"
-            />
-            <span>{opt.label}</span>
-          </label>
-        ))}
-      </div>
-
-      {/* Sovereign Lineage Guarantee */}
-      <div className="bg-[#FFFFFF] border border-[#DFCCA6] p-4 space-y-2">
-        <div className="flex items-center gap-2 text-[#4A0D1B]">
-          <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
-          <p className="text-[10px] font-semibold tracking-[0.14em] uppercase">
-            SOVEREIGN LINEAGE GUARANTEE
-          </p>
-        </div>
-        <p className="text-[11px] leading-relaxed text-[#5E4346]">
-          Every piece includes a verifiable physical provenance docket and GI authenticity cert.
+        <p className="text-[11px] text-[#5E4346]">
+          Sarees (Free Size) · Sets &amp; Blouses (38–44) · Punjabi (38–44) · Kids (1–15Y)
         </p>
-      </div>
+      </button>
     </div>
   );
 
@@ -531,9 +517,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
             <button
               type="button"
               onClick={() => onToggleWishlist(product.id)}
-              aria-label={isSaved ? `Remove ${product.title} from saved` : `Save ${product.title}`}
+              aria-label={isSaved ? `Remove ${product.title} from wishlist` : `Save ${product.title}`}
               aria-pressed={isSaved}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#FDF3DC]/95 flex items-center justify-center text-[#241214] hover:text-[#4A0D1B] transition-colors"
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#FDF3DC]/95 flex items-center justify-center text-[#241214] hover:text-[#4A0D1B]"
             >
               <Heart
                 className={`w-4 h-4 ${isSaved ? 'fill-[#4A0D1B] text-[#4A0D1B]' : ''}`}
@@ -544,7 +530,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
 
           <div className="p-4 sm:p-5 space-y-2">
             <div className="flex items-start justify-between gap-2 text-[9px] font-semibold tracking-[0.12em] uppercase text-[#7D5718]">
-              <span>{product.guildLabel}</span>
+              <span>{product.categoryLabel}</span>
               <span className="text-[#5E4346] text-right">{product.certificationText}</span>
             </div>
             <h3 className="font-serif text-lg sm:text-xl text-[#241214] leading-snug">
@@ -559,33 +545,31 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
             <p className="text-xs text-[#5E4346] line-clamp-2 leading-relaxed">
               {product.description}
             </p>
+            <p className="text-[10px] font-mono text-[#7D5718]">
+              Sizes: {product.availableSizes.join(' · ')}
+            </p>
           </div>
         </div>
 
-        <div className="px-4 sm:px-5 pb-4 pt-3 border-t border-[#F7E8C6] flex items-end justify-between gap-2">
+        <div className="px-4 sm:px-5 pb-4 pt-3 border-t border-[#F7E8C6] flex items-center justify-between gap-2">
           <div>
-            <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#7D5718]">
-              ATELIER VALUE
-            </p>
-            <p className="text-base font-semibold text-[#241214] tabular-nums mt-0.5">
+            <p className="text-base font-semibold text-[#241214] tabular-nums">
               {formatPrice(product.priceINR, currency)}
             </p>
+            {product.originalPriceINR && (
+              <p className="text-[11px] text-[#5E4346] line-through tabular-nums">
+                {formatPrice(product.originalPriceINR, currency)}
+              </p>
+            )}
           </div>
-          <div className="text-right space-y-1.5">
-            <p className="text-[9px] font-semibold tracking-[0.12em] uppercase text-[#5E4346]">
-              {product.statusText}
-            </p>
-            <div className="flex items-center justify-end gap-1.5">
-              {product.colorways.slice(0, 3).map((cw) => (
-                <span
-                  key={cw.name}
-                  title={cw.name}
-                  style={{ backgroundColor: cw.hex }}
-                  className="w-3 h-3 rounded-full border border-[#DFCCA6]"
-                />
-              ))}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => onQuickAdd(product)}
+            className="px-3.5 py-2 bg-[#4A0D1B] hover:bg-[#2F0710] text-[#FDF3DC] text-[10px] font-semibold tracking-[0.12em] uppercase inline-flex items-center gap-1.5 min-h-[36px]"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 text-[#E5C37A]" aria-hidden="true" />
+            <span>ADD TO BAG</span>
+          </button>
         </div>
       </article>
     );
@@ -597,58 +581,53 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
       <div className="border-b border-[#DFCCA6] bg-[#FDF3DC]">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-2 text-[10px] tracking-[0.14em] uppercase">
           <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[#5E4346]">
-            <button
-              type="button"
-              onClick={() => onNavigate('home')}
-              className="hover:text-[#241214]"
-            >
+            <button type="button" onClick={() => onNavigate('home')} className="hover:text-[#241214]">
               HOME
             </button>
             <span aria-hidden="true">/</span>
-            <span className="text-[#5E4346]">COLLECTIONS</span>
-            <span aria-hidden="true">/</span>
-            <span className="text-[#241214] font-semibold">HANDLOOM &amp; COUTURE ARCHIVE</span>
+            <span className="text-[#241214] font-semibold">SHOP COLLECTIONS</span>
           </nav>
           <span className="font-semibold text-[#7D5718]">
-            ● CERTIFIED LINEAGE INDEX — FALL/WINTER 2025
+            {BRAND_INFO.debutMilestone.toUpperCase()} · USE CODE {BRAND_INFO.welcomePromoCode} (5% OFF 1ST ORDER)
           </span>
         </div>
       </div>
 
-      {/* Archive Hero Header */}
+      {/* Collection Header */}
       <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-8 border-b border-[#DFCCA6]">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
           <div className="lg:col-span-7 space-y-3">
-            <p className="font-serif italic text-sm text-[#7D5718]">
-              Curated Repositories of Bharat
-            </p>
+            <div className="flex items-center gap-2">
+              <LotusMotif className="w-6 h-4" color="#4A0D1B" accentColor="#B5832C" />
+              <p className="font-serif italic text-sm text-[#7D5718]">
+                {BRAND_INFO.tagline}
+              </p>
+            </div>
             <h1 className="font-serif text-3xl sm:text-5xl text-[#241214] tracking-tight">
-              THE HANDLOOM &amp; COUTURE ARCHIVE
+              PRIYONTOR COLLECTIONS
             </h1>
             <p className="text-xs sm:text-sm text-[#5E4346] max-w-2xl leading-relaxed">
-              482 Handcrafted Heirlooms — Preserving generational lineages of Indian masterweavers
-              across royal guilds, rare jacquards, and sacred motifs authenticated via direct
-              artisan patronage.
+              Explore Indian state-wise traditional sarees (₹1,200–₹25,000), Designer Sarees, Mens&apos; Ethnic Punjabi in cotton &amp; silk (₹1,000–₹6,000), Kids&apos; wear, Blouses (₹800–₹2,000), and Women&apos;s breathable Co-Ord &amp; Kurta Sets.
             </p>
           </div>
 
           <div className="lg:col-span-5 grid grid-cols-3 gap-3 bg-[#F7E8C6] border border-[#DFCCA6] p-4 sm:p-5">
             <div>
-              <p className="font-serif text-2xl sm:text-3xl text-[#241214] tabular-nums">18</p>
+              <p className="font-serif text-2xl sm:text-3xl text-[#241214] tabular-nums">12</p>
               <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#5E4346] mt-1">
-                STATES REPRESENTED
+                STATE SAREES
               </p>
             </div>
             <div className="border-l border-[#DFCCA6] pl-3">
-              <p className="font-serif text-2xl sm:text-3xl text-[#241214] tabular-nums">100%</p>
+              <p className="font-serif text-2xl sm:text-3xl text-[#241214] tabular-nums">5%</p>
               <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#5E4346] mt-1">
-                TRACEABLE PROVENANCE
+                1ST ORDER (PRIYO5)
               </p>
             </div>
             <div className="border-l border-[#DFCCA6] pl-3">
-              <p className="font-serif text-2xl sm:text-3xl text-[#241214] tabular-nums">₹0</p>
+              <p className="font-serif text-2xl sm:text-3xl text-[#241214] tabular-nums">10%</p>
               <p className="text-[9px] font-semibold tracking-[0.14em] uppercase text-[#5E4346] mt-1">
-                INTERMEDIARY MARKUP
+                ON ₹20,000+ ORDERS
               </p>
             </div>
           </div>
@@ -657,7 +636,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         {/* Category Tabs */}
         <div
           role="tablist"
-          aria-label="Archive Silhouette Categories"
+          aria-label="Product Categories"
           className="mt-8 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"
         >
           {categoryTabs.map((tab) => {
@@ -668,9 +647,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                 role="tab"
                 aria-selected={active}
                 type="button"
-                onClick={() =>
-                  onFiltersChange((prev) => ({ ...prev, category: tab.id }))
-                }
+                onClick={() => onFiltersChange((prev) => ({ ...prev, category: tab.id }))}
                 className={`px-4 py-2.5 text-[10px] font-semibold tracking-[0.12em] uppercase whitespace-nowrap border transition-colors min-h-[40px] ${
                   active
                     ? 'bg-[#4A0D1B] text-[#FDF3DC] border-[#4A0D1B]'
@@ -684,33 +661,28 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
         </div>
       </section>
 
-      {/* Main Content: Sidebar + Product Grid */}
+      {/* Main Content */}
       <section className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Desktop Curatorial Filters Sidebar */}
           <aside
-            aria-label="Curatorial Filters"
+            aria-label="Catalog Filters"
             className="hidden lg:block lg:col-span-3 bg-[#F7E8C6]/60 border border-[#DFCCA6] p-5 sticky top-24"
           >
             {renderSidebarContent()}
           </aside>
 
-          {/* Right Product Area */}
           <div className="lg:col-span-9 space-y-6">
-            {/* Active India Saree Map Category Banner */}
             {activeMapSpot && (
               <div className="bg-[#FFFFFF] border-2 border-[#B5832C] p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
                 <div className="space-y-1">
                   <p className="text-[10px] font-semibold tracking-[0.16em] uppercase text-[#7D5718]">
-                    SAREE MAP SELECTION · {activeMapSpot.state.toUpperCase()}
+                    STATE SAREE MAP SELECTION · {activeMapSpot.state.toUpperCase()}
                   </p>
                   <h2 className="font-serif text-xl sm:text-2xl text-[#4A0D1B]">
-                    {activeMapSpot.sareeName} Collection ({filteredProducts.length}{' '}
-                    {filteredProducts.length === 1 ? 'Heirloom' : 'Heirlooms'})
+                    {activeMapSpot.sareeName} ({filteredProducts.length}{' '}
+                    {filteredProducts.length === 1 ? 'Product' : 'Products'})
                   </h2>
-                  <p className="text-xs text-[#5E4346] max-w-2xl">
-                    {activeMapSpot.description}
-                  </p>
+                  <p className="text-xs text-[#5E4346] max-w-2xl">{activeMapSpot.description}</p>
                 </div>
                 <button
                   type="button"
@@ -735,17 +707,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                   <span>FILTERS ({activeChips.length})</span>
                 </button>
                 <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#241214]">
-                  SHOWING <span className="tabular-nums">{displayedProducts.length}</span> OF{' '}
-                  <span className="tabular-nums">
-                    {activeChips.length > 0 || filters.category !== 'all'
-                      ? filteredProducts.length
-                      : 482}
-                  </span>{' '}
-                  HEIRLOOMS
+                  SHOWING <span className="tabular-nums">{filteredProducts.length}</span> OF{' '}
+                  <span className="tabular-nums">{PRODUCTS.length}</span> PRODUCTS
                 </p>
-                <span className="hidden sm:inline font-serif italic text-xs text-[#5E4346]">
-                  · Hand-selected master weaver batches
-                </span>
               </div>
 
               <div className="flex items-center gap-3">
@@ -763,10 +727,9 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                   }
                   className="bg-[#FDF3DC] border border-[#DFCCA6] px-2.5 py-1.5 text-[10px] font-semibold tracking-[0.1em] uppercase text-[#241214] min-h-[36px]"
                 >
-                  <option value="curator">CURATOR&apos;S CHOICE (HERITAGE RATING)</option>
-                  <option value="price-desc">ATELIER VALUE: HIGH TO LOW</option>
-                  <option value="price-asc">ATELIER VALUE: LOW TO HIGH</option>
-                  <option value="hours">LOOM HOURS: HIGHEST FIRST</option>
+                  <option value="curator">FEATURED CURATION</option>
+                  <option value="price-asc">PRICE: LOW TO HIGH</option>
+                  <option value="price-desc">PRICE: HIGH TO LOW</option>
                 </select>
 
                 <div className="hidden md:flex items-center border border-[#DFCCA6]">
@@ -792,27 +755,24 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
               </div>
             </div>
 
-            {/* Empty State */}
             {filteredProducts.length === 0 ? (
               <div className="bg-[#FFFFFF] border border-[#DFCCA6] p-12 text-center space-y-4">
                 <p className="font-serif text-2xl text-[#241214]">
-                  No Archive Pieces Match Your Current Selection
+                  No Products Match Your Current Selection
                 </p>
                 <p className="text-xs text-[#5E4346] max-w-md mx-auto">
-                  Try clearing one or more regional guild, fiber, or loom status filters to explore
-                  more masterweaver heirlooms.
+                  Clear one or more category, state, or price filters to view more Priyontor pieces.
                 </p>
                 <button
                   type="button"
                   onClick={resetAllFilters}
                   className="px-6 py-3 bg-[#4A0D1B] text-[#FDF3DC] text-[10px] font-semibold tracking-[0.16em] uppercase"
                 >
-                  RESET ALL ARCHIVE FILTERS
+                  RESET ALL FILTERS
                 </button>
               </div>
             ) : (
               <>
-                {/* First 6 Cards */}
                 <div
                   className={`grid grid-cols-1 sm:grid-cols-2 ${
                     gridCols === 3 ? 'xl:grid-cols-3' : 'xl:grid-cols-2'
@@ -821,42 +781,41 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                   {firstHalf.map(renderProductCard)}
                 </div>
 
-                {/* Mid-Grid Private Bridal & Trousseau Concierge Banner */}
-                <div className="bg-[#4A0D1B] text-[#FDF3DC] p-6 sm:p-9 relative overflow-hidden dark-surface">
-                  <div className="relative z-10 max-w-2xl space-y-4">
-                    <div className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.18em] uppercase text-[#E5C37A]">
-                      <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>PRIVILEGED CLIENT SERVICE</span>
+                {/* Mid-Grid Newtown Kolkata Store & Enquiry Banner */}
+                <div className="bg-[#4A0D1B] text-[#FDF3DC] p-6 sm:p-9 relative overflow-hidden dark-surface border border-[#B5832C]">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="space-y-3 max-w-2xl">
+                      <div className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.18em] uppercase text-[#E5C37A]">
+                        <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>NEWTOWN, KOLKATA STORE · SPECIAL DISCOUNTS</span>
+                      </div>
+                      <h2 className="font-serif text-2xl sm:text-3xl text-[#FDF3DC]">
+                        Visit Priyontor at Astra Tower or Connect on WhatsApp
+                      </h2>
+                      <p className="text-xs sm:text-sm text-[#E5D8CE] leading-relaxed">
+                        Enjoy <strong>10% Off on your 1st physical purchase</strong> at {BRAND_INFO.storeAddress}, <strong>10% Off on purchases of ₹20,000+</strong>, and <strong>5% Off your 1st online order (PRIYO5)</strong>.
+                      </p>
                     </div>
-                    <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#FDF3DC]">
-                      The Private Bridal &amp; Trousseau Concierge
-                    </h2>
-                    <p className="text-xs sm:text-sm text-[#E5D8CE] leading-relaxed">
-                      Consult our Master Textile Curators in New Delhi or book an immersive 4K
-                      video walkthrough with micro-lens fabric inspections. We customize motifs,
-                      thread tensions, and gold purity for generational heirlooms.
-                    </p>
-                    <div className="flex flex-wrap gap-3 pt-2">
+                    <div className="flex flex-wrap gap-3 shrink-0">
                       <button
                         type="button"
-                        onClick={onOpenConcierge}
-                        className="px-5 py-3 bg-[#FDF3DC] text-[#4A0D1B] hover:bg-[#F7E8C6] text-[10px] font-semibold tracking-[0.14em] uppercase transition-colors min-h-[44px]"
+                        onClick={onOpenContact}
+                        className="px-5 py-3 bg-[#FDF3DC] text-[#4A0D1B] hover:bg-[#F7E8C6] text-[10px] font-semibold tracking-[0.14em] uppercase min-h-[44px]"
                       >
-                        BOOK VIDEO WALKTHROUGH
+                        STORE &amp; WHATSAPP INFO
                       </button>
                       <button
                         type="button"
-                        onClick={onOpenConcierge}
-                        className="inline-flex items-center gap-2 px-5 py-3 bg-[#2F0710] border border-[#7A3341] text-[#FDF3DC] hover:bg-[#23060B] text-[10px] font-semibold tracking-[0.14em] uppercase transition-colors min-h-[44px]"
+                        onClick={() => onOpenPolicyTab('care')}
+                        className="inline-flex items-center gap-2 px-5 py-3 bg-[#2F0710] border border-[#B5832C] text-[#FDF3DC] text-[10px] font-semibold tracking-[0.14em] uppercase min-h-[44px]"
                       >
-                        <span>DELHI ATELIER APPOINTMENT</span>
+                        <span>WASHING &amp; CARE</span>
                         <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Second Half Cards */}
                 {secondHalf.length > 0 && (
                   <div
                     className={`grid grid-cols-1 sm:grid-cols-2 ${
@@ -866,132 +825,49 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                     {secondHalf.map(renderProductCard)}
                   </div>
                 )}
-
-                {/* Pagination & Reveal More */}
-                <div className="pt-8 pb-4 flex flex-col items-center space-y-5">
-                  <div className="w-56 text-center space-y-2">
-                    <p className="text-[9px] font-semibold tracking-[0.18em] uppercase text-[#5E4346]">
-                      ARCHIVE REVEALED: {displayedProducts.length} OF {filteredProducts.length} WEAVES
-                    </p>
-                    <div className="h-[2px] w-full bg-[#DFCCA6]">
-                      <div
-                        className="h-full bg-[#4A0D1B] transition-all"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round((displayedProducts.length / Math.max(1, filteredProducts.length)) * 100)
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {visibleLimit < filteredProducts.length && (
-                    <button
-                      type="button"
-                      onClick={() => setVisibleLimit((v) => v + 6)}
-                      className="px-7 py-3 bg-[#4A0D1B] hover:bg-[#2F0710] text-[#FDF3DC] text-[10px] font-semibold tracking-[0.16em] uppercase transition-colors min-h-[44px]"
-                    >
-                      REVEAL MORE RARE WEAVES
-                    </button>
-                  )}
-
-                  <nav aria-label="Archive Pagination" className="flex items-center gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      aria-label="Previous page"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      className="w-8 h-8 flex items-center justify-center border border-[#DFCCA6] bg-[#FFFFFF] text-[#5E4346] hover:border-[#241214]"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                    {[1, 2, 3].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setCurrentPage(num)}
-                        aria-current={currentPage === num ? 'page' : undefined}
-                        className={`w-8 h-8 text-xs font-medium tabular-nums border ${
-                          currentPage === num
-                            ? 'bg-[#241214] text-[#FDF3DC] border-[#241214]'
-                            : 'bg-[#FFFFFF] text-[#5E4346] border-[#DFCCA6] hover:border-[#241214]'
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                    <span className="px-1.5 text-xs text-[#5E4346]">...</span>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage(54)}
-                      className="w-8 h-8 text-xs font-medium tabular-nums border bg-[#FFFFFF] text-[#5E4346] border-[#DFCCA6] hover:border-[#241214]"
-                    >
-                      54
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Next page"
-                      onClick={() => setCurrentPage((p) => Math.min(54, p + 1))}
-                      className="w-8 h-8 flex items-center justify-center border border-[#DFCCA6] bg-[#FFFFFF] text-[#5E4346] hover:border-[#241214]"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                  </nav>
-                </div>
               </>
             )}
           </div>
         </div>
       </section>
 
-      {/* Bottom 3-Pillar Trust Strip */}
-      <section aria-label="Archive Standards" className="bg-[#FDF3DC] border-t border-[#DFCCA6] py-10">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="flex items-start gap-3.5">
-            <ShieldCheck className="w-5 h-5 text-[#4A0D1B] shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <h3 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#241214]">
-                GI &amp; SILK MARK CERTIFIED
-              </h3>
-              <p className="text-xs text-[#5E4346] mt-1 leading-relaxed">
-                Every thread is scientifically authenticated. Genuine zari test seals and GI
-                geographical registration certificates accompany each bespoke acquisition.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3.5">
-            <Sparkles className="w-5 h-5 text-[#4A0D1B] shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <h3 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#241214]">
-                DIRECT ROYALTIES LEDGER
-              </h3>
-              <p className="text-xs text-[#5E4346] mt-1 leading-relaxed">
-                Zero trader markups. 72% of product proceeds flow directly to the designated
-                weaver&apos;s account, ensuring economic sovereignty for generational crafts.
-              </p>
-            </div>
-          </div>
+      {/* Bottom Trust Strip */}
+      <section aria-label="Brand Policies" className="bg-[#FDF3DC] border-t border-[#DFCCA6] py-10">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
           <div className="flex items-start gap-3.5">
             <Plane className="w-5 h-5 text-[#4A0D1B] shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <h3 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#241214]">
-                VAULTED GLOBAL AIR TRANSIT
+                INDIA &amp; WORLDWIDE DELIVERY
               </h3>
               <p className="text-xs text-[#5E4346] mt-1 leading-relaxed">
-                Packed in hand-carved cedarwood preservation cases with acid-free tissue wrapping,
-                shipped via insured international courier to 140+ countries.
+                Dispatched from Newtown, Kolkata to addresses across India and worldwide.
               </p>
             </div>
+          </div>
+          <div className="flex items-start gap-3.5">
+            <ShieldCheck className="w-5 h-5 text-[#4A0D1B] shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <h3 className="text-[11px] font-semibold tracking-[0.14em] uppercase text-[#241214]">
+                UPI &amp; CARD PAYMENT ONLY
+              </h3>
+              <p className="text-xs text-[#5E4346] mt-1 leading-relaxed">
+                Registered under GSTIN {BRAND_INFO.gstNumber} with transparent return &amp; refund policies.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-start md:justify-end">
+            <BenarasGhatMotif className="w-32 h-9" color="#B5832C" accentColor="#4A0D1B" />
           </div>
         </div>
       </section>
 
-      {/* Mobile Curatorial Filter Drawer */}
+      {/* Mobile Filter Drawer */}
       {mobileFiltersOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Curatorial Filters"
+          aria-label="Filter Collections"
           className="fixed inset-0 z-50 lg:hidden flex"
         >
           <div
@@ -1000,7 +876,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
           />
           <div className="relative w-full max-w-xs bg-[#FDF3DC] h-full overflow-y-auto p-5 shadow-xl z-10">
             <div className="flex items-center justify-between mb-4">
-              <span className="font-serif text-lg text-[#241214]">Curatorial Filters</span>
+              <span className="font-serif text-lg text-[#241214]">Filters</span>
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(false)}
@@ -1017,7 +893,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({
                 onClick={() => setMobileFiltersOpen(false)}
                 className="w-full py-3 bg-[#4A0D1B] text-[#FDF3DC] text-[11px] font-semibold tracking-[0.14em] uppercase"
               >
-                APPLY FILTERS ({filteredProducts.length})
+                VIEW PRODUCTS ({filteredProducts.length})
               </button>
             </div>
           </div>

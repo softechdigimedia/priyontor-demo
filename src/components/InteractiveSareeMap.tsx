@@ -30,7 +30,7 @@ export const InteractiveSareeMap: React.FC<InteractiveSareeMapProps> = ({
       <div className="relative w-full aspect-square bg-[#F7F1E4] border border-[#DFCCA6] overflow-hidden select-none">
         <img
           src={SAREE_MAP_IMAGE_SRC}
-          alt="Interactive Saree Map of India showing 12 regional weaving traditions from Kashmir Pashmina to Tamil Nadu Kanjivaram"
+          alt="Interactive Saree Map of India showing 12 state-wise traditional weaves from Kashmir Kani & Ari to Banarasi, Bengal Jamdani, Assam Muga & Andhra Mangalgiri"
           className="w-full h-full object-contain block"
         />
 
